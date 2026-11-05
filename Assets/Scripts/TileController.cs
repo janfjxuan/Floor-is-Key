@@ -1,0 +1,49 @@
+using UnityEngine;
+
+public enum TileState { Neutral, Safe, Lava, Crumbling }
+
+public class TileController : MonoBehaviour
+{
+    public int gridX;
+    public int gridY;
+    public TileState currentState = TileState.Neutral;
+    public int noteIndex = 0;
+
+    private SpriteRenderer spriteRenderer;
+
+    void Awake()
+    {
+        spriteRenderer = GetComponent<SpriteRenderer>();
+    }
+
+    public void SetState(TileState newState, int assignedNote = 0)
+    {
+        currentState = newState;
+        noteIndex = assignedNote;
+
+        switch (newState)
+        {
+            case TileState.Neutral:
+                spriteRenderer.color = new Color(0.1f, 0.1f, 0.18f); // Dark purple
+                break;
+            case TileState.Safe:
+                spriteRenderer.color = new Color(0f, 0.95f, 1f); // Neon Cyan
+                break;
+            case TileState.Lava:
+                spriteRenderer.color = new Color(1f, 0f, 0.33f); // Pulsing Red
+                break;
+            case TileState.Crumbling:
+                spriteRenderer.color = new Color(1f, 0.55f, 0f); // Orange
+                break;
+        }
+    }
+
+    private void OnTriggerEnter2D(Collider2D other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            // Tell the GridManager/GameManager that the player stepped on this tile
+            GridManager.Instance.OnPlayerStepTile(this);
+        }
+    }
+}
