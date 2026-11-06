@@ -26,8 +26,7 @@ public class AudioManager : MonoBehaviour
     {
         if (wrongStepClip != null)
         {
-            audioSource.pitch = 1.0f;
-            audioSource.PlayOneShot(wrongStepClip);
+            audioSource.PlayOneShot(wrongStepClip, 2f);
         }
     }
 }

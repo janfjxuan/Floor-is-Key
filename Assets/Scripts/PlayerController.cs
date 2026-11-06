@@ -3,12 +3,23 @@ using UnityEngine;
 public class PlayerController : MonoBehaviour
 {
     public float moveSpeed = 7f;
+
+    [Header("Grid Position")]
+    public int gridX = 2; // Default to grid center (2, 2)
+    public int gridY = 2;
+
     private Rigidbody2D rb;
     private Vector2 moveInput;
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
+
+        // Snap physical starting transform position to grid center (2, 2)
+        if (GridManager.Instance != null)
+        {
+            transform.position = GridManager.Instance.GetTileWorldPosition(gridX, gridY);
+        }
     }
 
     void Update()
@@ -27,7 +38,14 @@ public class PlayerController : MonoBehaviour
 
     void FixedUpdate()
     {
-        // Apply velocity movement
+        // Stop physics movement completely when game is over
+        if (GridManager.Instance != null && GridManager.Instance.isGameOver)
+        {
+            rb.linearVelocity = Vector2.zero;
+            return;
+        }
+
+        // Apply normal velocity movement
         rb.linearVelocity = moveInput * moveSpeed;
 
         // Clamp world position inside grid bounds after moving

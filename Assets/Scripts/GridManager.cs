@@ -18,8 +18,16 @@ public class GridManager : MonoBehaviour
     public int combo = 0;
     public bool isGameOver = false;
 
+    [Header("Game Stats")]
+    public int maxCombo = 0;
+    private int totalSteps = 0;
+    private int successfulSteps = 0;
+
+    [Header("Riff Presets")]
+    public RiffData[] availableRiffs;
+
     private TileController[,] grid;
-    private int[] targetSequence = new int[] { 0, 2, 3, 0, 3, 5, 3 };
+    private int[] targetSequence;
     private int currentSequenceStep = 0;
 
     void Awake()
@@ -30,17 +38,47 @@ public class GridManager : MonoBehaviour
     void Start()
     {
         GenerateGrid();
+
+        // 1. Pick a random Riff asset
+        if (availableRiffs != null && availableRiffs.Length > 0)
+        {
+            int randomIndex = Random.Range(0, availableRiffs.Length);
+            targetSequence = availableRiffs[randomIndex].noteSequence;
+        }
+        else
+        {
+            targetSequence = new int[] { 0, 2, 3, 0, 3, 5, 3 };
+        }
+
+        currentSequenceStep = 0;
+
+        // 2. Clear stats & combo state
+        score = 0;
+        combo = 0;
+        maxCombo = 0;
+        totalSteps = 0;
+        successfulSteps = 0;
+
+        // 3. Get initial player position & spawn first target note
         int startX = 2;
         int startY = 2;
-        SpawnNextTargetNote(-1, -1);
+        PlayerController player = FindFirstObjectByType<PlayerController>();
+        if (player != null)
+        {
+            startX = player.gridX;
+            startY = player.gridY;
+        }
 
-        // Initialize HUD display
+        SpawnNextTargetNote(startX, startY);
+
+        // 4. Initialize HUD display AND push the active riff sequence to the queue!
         if (HUDManager.Instance != null)
         {
             HUDManager.Instance.UpdateScore(score);
             HUDManager.Instance.UpdateLives(lives);
             HUDManager.Instance.UpdateTimer(timeRemaining);
             HUDManager.Instance.UpdateCombo(combo);
+            HUDManager.Instance.UpdateRiffQueue(targetSequence, currentSequenceStep); // 👈 ADD THIS LINE
         }
     }
 
@@ -77,10 +115,18 @@ public class GridManager : MonoBehaviour
     {
         if (isGameOver) return;
 
+        totalSteps++; // Track every step attempted
+
         if (steppedTile.currentState == TileState.Safe)
         {
+            successfulSteps++;
             // 1. Increment Combo Streak
             combo++;
+
+            if (combo > maxCombo)
+            {
+                maxCombo = combo; // Track highest combo reached
+            }
 
             // 2. Exponential Score Formula
             int addedScore = 100 + (20 * combo);
@@ -93,7 +139,20 @@ public class GridManager : MonoBehaviour
             }
 
             AudioManager.Instance.PlayNote(steppedTile.noteIndex);
-            currentSequenceStep = (currentSequenceStep + 1) % targetSequence.Length;
+            // Advance to next note in sequence
+            currentSequenceStep++;
+
+            // WIN CONDITION: Player reached the end of the riff!
+            if (currentSequenceStep >= targetSequence.Length)
+            {
+                CompleteLevel();
+                return;
+            }
+
+            if (HUDManager.Instance != null)
+            {
+                HUDManager.Instance.UpdateRiffQueue(targetSequence, currentSequenceStep);
+            }
 
             SpawnNextTargetNote(steppedTile.gridX, steppedTile.gridY);
             ReplayManager.Instance.RecordStep(steppedTile.noteIndex, false, 60f - timeRemaining);
@@ -116,6 +175,7 @@ public class GridManager : MonoBehaviour
             if (lives <= 0)
             {
                 EndGame();
+                return;
             }
 
             ReplayManager.Instance.RecordStep(-1, true, 60f - timeRemaining);
@@ -272,20 +332,63 @@ public class GridManager : MonoBehaviour
         return false; // Path blocked by lava wall
     }
 
+    void CompleteLevel()
+    {
+        isGameOver = true; // Prevents further movement or timer updates
+
+        // Freeze player input and physics
+        PlayerController player = FindFirstObjectByType<PlayerController>();
+        if (player != null)
+        {
+            Rigidbody2D rb = player.GetComponent<Rigidbody2D>();
+            if (rb != null)
+            {
+                rb.linearVelocity = Vector2.zero;
+                rb.simulated = false;
+            }
+            player.enabled = false;
+        }
+
+        float accuracy = totalSteps > 0 ? ((float)successfulSteps / totalSteps) * 100f : 0f;
+
+        // Show Level Complete UI Panel
+        if (HUDManager.Instance != null)
+        {
+            HUDManager.Instance.ShowLevelComplete(score, accuracy, maxCombo);
+        }
+
+        if (ReplayManager.Instance != null)
+        {
+            ReplayManager.Instance.StartReplay();
+        }
+    }
+
     void EndGame()
     {
         isGameOver = true;
-        // Disable player controls so they can't move during replay
-        PlayerController player = FindFirstObjectByType<PlayerController>();
-        if (player != null) player.enabled = false;
 
-        // Trigger end screen overlay
-        if (HUDManager.Instance != null)
+        // Freeze player position in place
+        PlayerController player = FindFirstObjectByType<PlayerController>();
+        if (player != null)
         {
-            HUDManager.Instance.ShowGameOver();
+            Rigidbody2D rb = player.GetComponent<Rigidbody2D>();
+            if (rb != null)
+            {
+                rb.linearVelocity = Vector2.zero; // Stop all momentum immediately
+                rb.simulated = false;              // Disable physics simulation
+            }
+            player.enabled = false;
         }
 
-        // Trigger performance replay playback
+        // Calculate percentage accuracy safely
+        float accuracy = totalSteps > 0 ? ((float)successfulSteps / totalSteps) * 100f : 0f;
+
+        // Pass final stats to HUD
+        if (HUDManager.Instance != null)
+        {
+            HUDManager.Instance.ShowGameOver(score, accuracy, maxCombo);
+        }
+
         if (ReplayManager.Instance != null)
         {
             ReplayManager.Instance.StartReplay();
