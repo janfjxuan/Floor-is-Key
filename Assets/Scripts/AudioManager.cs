@@ -4,8 +4,10 @@ public class AudioManager : MonoBehaviour
 {
     public static AudioManager Instance;
     public AudioSource audioSource;
-    public AudioClip[] noteClips; // Array of 13 note clips (C1 to C2)
-    public AudioClip wrongStepClip; // buzzer/error sound
+    public AudioClip[] noteClips;
+    public AudioClip wrongStepClip;
+    [SerializeField] private AudioClip levelCompleteSound;
+    [SerializeField] private AudioClip gameOverSound;
 
     void Awake()
     {
@@ -17,7 +19,7 @@ public class AudioManager : MonoBehaviour
     {
         if (noteClips != null && noteIndex >= 0 && noteIndex < noteClips.Length)
         {
-            audioSource.pitch = 1.0f; // Reset pitch to normal
+            audioSource.pitch = 1.0f;
             audioSource.PlayOneShot(noteClips[noteIndex]);
         }
     }
@@ -27,6 +29,20 @@ public class AudioManager : MonoBehaviour
         if (wrongStepClip != null)
         {
             audioSource.PlayOneShot(wrongStepClip, 2f);
+        }
+    }
+    public void PlayLevelCompleteSound()
+    {
+        if (levelCompleteSound != null)
+        {
+            audioSource.PlayOneShot(levelCompleteSound, 2f);
+        }
+    }
+    public void PlayGameOverSound()
+    {
+        if (gameOverSound != null)
+        {
+            audioSource.PlayOneShot(gameOverSound, 2f);
         }
     }
 }

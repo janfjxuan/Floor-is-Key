@@ -59,7 +59,7 @@
 List all external assets, code, tutorials, and AI tools used, with sources. State "None" if not applicable.
 
 - Piano Notes: https://github.com/parisjava/wav-piano-sound
-- Sound Effects: https://pixabay.com/sound-effects/film-special-effects-wronganswer-37702/
+- Sound Effects: https://pixabay.com/sound-effects/film-special-effects-wronganswer-37702/, https://quicksounds.com/sound/29774/brawl-stars-win-winning-sounds 
 - Neon UI Kit: https://rjc-dude.itch.io/neon-ui-kit-sampler
 - Gemini
 

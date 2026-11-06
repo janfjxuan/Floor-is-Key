@@ -483,6 +483,15 @@ public class GridManager : MonoBehaviour
             for (int y = 0; y < rows; y++)
                 grid[x, y].SetState(TileState.Neutral);
 
+        // 1. Display banner first so player can read it clearly
+        if (HUDManager.Instance != null)
+        {
+            HUDManager.Instance.ShowPhaseText("LISTEN AND MEMORISE", 1.2f);
+        }
+
+        // 2. Short pause so player reads message BEFORE preview tiles start lighting up
+        yield return new WaitForSeconds(0.8f);
+
         float currentSecondsPerNote = Mathf.Max(0.22f, baseSecondsPerNote - (currentChunkIndex * 0.08f));
 
         for (int i = 0; i < currentChunkNotes.Length; i++)
@@ -507,6 +516,11 @@ public class GridManager : MonoBehaviour
             for (int y = 0; y < rows; y++)
                 grid[x, y].SetState(TileState.Neutral);
 
+        if (HUDManager.Instance != null)
+        {
+            HUDManager.Instance.ShowPhaseText("STOP! HAMMER TIME!", 1.5f);
+        }
+
         yield return new WaitForSeconds(0.3f);
 
         currentSequenceStep = 0;
@@ -516,7 +530,7 @@ public class GridManager : MonoBehaviour
         {
             Vector2Int startPos = hammerTimePath[0];
             player.SetChunkStartPosition(startPos.x, startPos.y);
-            player.gameObject.SetActive(true); // Player sprite appears right at start tile!
+            player.gameObject.SetActive(true);
         }
 
         SpawnNextHammerTimeTarget();
@@ -596,7 +610,7 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        // 2. Tile 0 (player starting location) is set to Neutral so sitting on it is 100% safe
+        // 2. Tile 0 (player starting location) is set to Neutral
         if (hammerTimePath.Count > 0)
         {
             Vector2Int startPos = hammerTimePath[0];
@@ -627,10 +641,25 @@ public class GridManager : MonoBehaviour
 
         float accuracy = totalSteps > 0 ? ((float)successfulSteps / totalSteps) * 100f : 0f;
 
+        // 1. Play celebratory victory audio chord/chime
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayLevelCompleteSound();
+        }
+
+        // 2. Display the Level Complete HUD Panel with final stats
         if (HUDManager.Instance != null)
         {
             HUDManager.Instance.ShowLevelComplete(score, accuracy, maxCombo);
         }
+
+        // 3. Start replay after a brief pause so player can celebrate and read stats
+        StartCoroutine(StartReplayWithDelayRoutine(1.8f));
+    }
+
+    private IEnumerator StartReplayWithDelayRoutine(float delaySeconds)
+    {
+        yield return new WaitForSeconds(delaySeconds);
 
         if (ReplayManager.Instance != null)
         {
@@ -656,14 +685,19 @@ public class GridManager : MonoBehaviour
 
         float accuracy = totalSteps > 0 ? ((float)successfulSteps / totalSteps) * 100f : 0f;
 
+        // 1. Play lose game sound effect
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayGameOverSound();
+        }
+
+        // 2. Show Game Over panel immediately
         if (HUDManager.Instance != null)
         {
             HUDManager.Instance.ShowGameOver(score, accuracy, maxCombo);
         }
 
-        if (ReplayManager.Instance != null)
-        {
-            ReplayManager.Instance.StartReplay();
-        }
+        // 3. Pause briefly so player hears the lose sound and reads stats, then start replay
+        StartCoroutine(StartReplayWithDelayRoutine(1.8f));
     }
 }

@@ -3,6 +3,7 @@ using TMPro;
 using System.Linq;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using System.Collections;
 
 public class HUDManager : MonoBehaviour
 {
@@ -48,6 +49,10 @@ public class HUDManager : MonoBehaviour
     [Header("Replay & Shared UI References")]
     public TextMeshProUGUI replayStatusText;
     public GameObject playAgainButton;
+
+    [Header("Phase Banner UI")]
+    [SerializeField] private TextMeshProUGUI phaseText;
+    private Coroutine activeBannerCoroutine;
 
     void Awake()
     {
@@ -205,6 +210,29 @@ public class HUDManager : MonoBehaviour
         {
             playAgainButton.SetActive(true);
         }
+    }
+
+    public void ShowPhaseText(string message, float duration = 2.0f)
+    {
+        if (phaseText == null) return;
+
+        if (activeBannerCoroutine != null)
+        {
+            StopCoroutine(activeBannerCoroutine);
+        }
+
+        activeBannerCoroutine = StartCoroutine(ShowPhaseTextRoutine(message, duration));
+    }
+
+    private IEnumerator ShowPhaseTextRoutine(string message, float duration)
+    {
+        phaseText.text = message;
+        phaseText.gameObject.SetActive(true);
+
+        yield return new WaitForSeconds(duration);
+
+        phaseText.gameObject.SetActive(false);
+        activeBannerCoroutine = null;
     }
 
     public void RestartGame()
