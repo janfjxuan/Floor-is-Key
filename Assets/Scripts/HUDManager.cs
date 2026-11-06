@@ -54,6 +54,9 @@ public class HUDManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI phaseText;
     private Coroutine activeBannerCoroutine;
 
+    [Header("UI Frame References")]
+    public GameObject gridBorderFrame;
+
     void Awake()
     {
         Instance = this;
@@ -129,10 +132,13 @@ public class HUDManager : MonoBehaviour
 
     public void ShowGameOver(int finalScore, float accuracy, int maxCombo)
     {
-        if (gameOverPanel != null)
+        // 1. Hide the cyan grid outline frame
+        if (gridBorderFrame != null)
         {
-            gameOverPanel.SetActive(true);
+            gridBorderFrame.SetActive(false);
         }
+
+        gameOverPanel.SetActive(true);
 
         if (finalScoreText != null)
             finalScoreText.text = $"{finalScore}";
@@ -143,12 +149,17 @@ public class HUDManager : MonoBehaviour
         if (maxComboText != null)
             maxComboText.text = $"{maxCombo}x";
 
-        // Dynamically reparent text and button to the GameOverPanel
         AttachReplayUI(gameOverPanel.transform);
     }
 
     public void ShowLevelComplete(int finalScore, float accuracy, int maxCombo)
     {
+        // 1. Hide the cyan grid outline frame
+        if (gridBorderFrame != null)
+        {
+            gridBorderFrame.SetActive(false);
+        }
+
         if (levelCompletePanel != null)
         {
             levelCompletePanel.SetActive(true);
@@ -163,7 +174,6 @@ public class HUDManager : MonoBehaviour
                 levelCompleteMaxComboText.text = $"{maxCombo}x";
         }
 
-        // Dynamically reparent text and button to the LevelCompletePanel
         AttachReplayUI(levelCompletePanel.transform);
     }
 
@@ -190,7 +200,7 @@ public class HUDManager : MonoBehaviour
     {
         if (replayStatusText != null)
         {
-            replayStatusText.text = "► REPLAYING YOUR MELODY...";
+            replayStatusText.text = "REPLAYING YOUR MELODY...";
         }
 
         if (playAgainButton != null)
@@ -203,7 +213,7 @@ public class HUDManager : MonoBehaviour
     {
         if (replayStatusText != null)
         {
-            replayStatusText.text = "♫ MELODY PLAYBACK COMPLETE!";
+            replayStatusText.text = "MELODY PLAYBACK COMPLETE!";
         }
 
         if (playAgainButton != null)

@@ -1,8 +1,11 @@
 using UnityEngine;
+using System.Collections;
 
 public class PlayerController : MonoBehaviour
 {
-    public float moveSpeed = 7f;
+    [Header("Movement Settings")]
+    public float moveCooldown = 0.15f; // Time between grid steps
+    private float moveTimer = 0f;
 
     [Header("Grid Position")]
     public int gridX = 2;
@@ -17,17 +20,14 @@ public class PlayerController : MonoBehaviour
 
     private Rigidbody2D rb;
     private Collider2D col;
-    private Vector2 moveInput;
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
         col = GetComponent<Collider2D>();
 
-        if (GridManager.Instance != null)
-        {
-            transform.position = GridManager.Instance.GetTileWorldPosition(gridX, gridY);
-        }
+        // Snap instantly to starting position center
+        SnapToGridPosition(gridX, gridY);
 
         previousGridX = gridX;
         previousGridY = gridY;
@@ -39,25 +39,61 @@ public class PlayerController : MonoBehaviour
     {
         if (GridManager.Instance != null && GridManager.Instance.isGameOver)
         {
-            moveInput = Vector2.zero;
             return;
         }
 
-        moveInput.x = Input.GetAxisRaw("Horizontal");
-        moveInput.y = Input.GetAxisRaw("Vertical");
-        moveInput = moveInput.normalized;
+        // Handle movement cooldown timer
+        if (moveTimer > 0f)
+        {
+            moveTimer -= Time.deltaTime;
+        }
+        else
+        {
+            HandleGridInput();
+        }
     }
 
-    void FixedUpdate()
+    void HandleGridInput()
     {
-        if (GridManager.Instance != null && GridManager.Instance.isGameOver)
+        int targetX = gridX;
+        int targetY = gridY;
+        bool inputReceived = false;
+
+        if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
         {
-            rb.linearVelocity = Vector2.zero;
-            return;
+            targetY++;
+            inputReceived = true;
+        }
+        else if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
+        {
+            targetY--;
+            inputReceived = true;
+        }
+        else if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
+        {
+            targetX--;
+            inputReceived = true;
+        }
+        else if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
+        {
+            targetX++;
+            inputReceived = true;
         }
 
-        rb.linearVelocity = moveInput * moveSpeed;
-        ClampPositionToGrid();
+        if (inputReceived)
+        {
+            // Check boundaries before moving
+            if (GridManager.Instance != null)
+            {
+                if (targetX >= 0 && targetX < GridManager.Instance.cols &&
+                    targetY >= 0 && targetY < GridManager.Instance.rows)
+                {
+                    UpdateGridPosition(targetX, targetY);
+                    SnapToGridPosition(gridX, gridY);
+                    moveTimer = moveCooldown; // Apply delay between steps
+                }
+            }
+        }
     }
 
     public void UpdateGridPosition(int newX, int newY)
@@ -83,10 +119,7 @@ public class PlayerController : MonoBehaviour
 
         if (rb != null) rb.linearVelocity = Vector2.zero;
 
-        if (GridManager.Instance != null)
-        {
-            transform.position = GridManager.Instance.GetTileWorldPosition(startX, startY);
-        }
+        SnapToGridPosition(startX, startY);
     }
 
     // Teleports player back safely without double-triggering collisions
@@ -105,39 +138,22 @@ public class PlayerController : MonoBehaviour
         // Disable collider briefly to avoid triggering collision on target teleport tile
         if (col != null) col.enabled = false;
 
-        if (GridManager.Instance != null)
-        {
-            transform.position = GridManager.Instance.GetTileWorldPosition(chunkStartX, chunkStartY);
-        }
+        SnapToGridPosition(chunkStartX, chunkStartY);
 
         // Re-enable collider next frame
         Invoke(nameof(EnableCollider), 0.05f);
     }
 
+    private void SnapToGridPosition(int x, int y)
+    {
+        if (GridManager.Instance != null)
+        {
+            transform.position = GridManager.Instance.GetTileWorldPosition(x, y);
+        }
+    }
+
     private void EnableCollider()
     {
         if (col != null) col.enabled = true;
-    }
-
-    void ClampPositionToGrid()
-    {
-        if (GridManager.Instance == null) return;
-
-        Vector3 minTilePos = GridManager.Instance.GetTileWorldPosition(0, 0);
-        Vector3 maxTilePos = GridManager.Instance.GetTileWorldPosition(
-            GridManager.Instance.cols - 1,
-            GridManager.Instance.rows - 1
-        );
-
-        float minX = minTilePos.x;
-        float maxX = maxTilePos.x;
-        float minY = minTilePos.y;
-        float maxY = maxTilePos.y;
-
-        Vector3 clampedPos = transform.position;
-        clampedPos.x = Mathf.Clamp(clampedPos.x, minX, maxX);
-        clampedPos.y = Mathf.Clamp(clampedPos.y, minY, maxY);
-
-        transform.position = clampedPos;
     }
 }

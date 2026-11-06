@@ -141,6 +141,31 @@ public class GridManager : MonoBehaviour
         }
     }
 
+    public void SetGridAndPlayerVisible(bool visible)
+    {
+        // Toggle all grid tiles
+        if (grid != null)
+        {
+            for (int x = 0; x < cols; x++)
+            {
+                for (int y = 0; y < rows; y++)
+                {
+                    if (grid[x, y] != null)
+                    {
+                        grid[x, y].gameObject.SetActive(visible);
+                    }
+                }
+            }
+        }
+
+        // Toggle player sprite
+        PlayerController player = FindFirstObjectByType<PlayerController>();
+        if (player != null)
+        {
+            player.gameObject.SetActive(visible);
+        }
+    }
+
     public Vector3 GetTileWorldPosition(int x, int y)
     {
         if (grid != null && x >= 0 && x < cols && y >= 0 && y < rows)
@@ -325,7 +350,7 @@ public class GridManager : MonoBehaviour
 
         float offsetX = (cols - 1) * tileSpacing / 2f;
         float offsetY = (rows - 1) * tileSpacing / 2f;
-        float verticalShift = -1.5f;
+        float verticalShift = -1.85f;
 
         for (int x = 0; x < cols; x++)
         {
@@ -627,6 +652,8 @@ public class GridManager : MonoBehaviour
     {
         isGameOver = true;
 
+        SetGridAndPlayerVisible(false);
+
         PlayerController player = FindFirstObjectByType<PlayerController>();
         if (player != null)
         {
@@ -670,6 +697,8 @@ public class GridManager : MonoBehaviour
     void EndGame()
     {
         isGameOver = true;
+
+        SetGridAndPlayerVisible(false);
 
         PlayerController player = FindFirstObjectByType<PlayerController>();
         if (player != null)
