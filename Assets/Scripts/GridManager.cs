@@ -26,6 +26,9 @@ public class GridManager : MonoBehaviour
     [Header("Riff Presets")]
     public RiffData[] availableRiffs;
 
+    // Static pool guarantees every song plays before any song repeats
+    private static List<int> riffPool = new List<int>();
+
     private TileController[,] grid;
     private int[] targetSequence;
     private int currentSequenceStep = 0;
@@ -37,13 +40,22 @@ public class GridManager : MonoBehaviour
 
     void Start()
     {
+        if (ReplayManager.Instance != null)
+        {
+            ReplayManager.Instance.ClearRecording();
+        }
+
         GenerateGrid();
 
-        // 1. Pick a random Riff asset
+        // 1. Pick a riff using dynamic Bag Shuffle
         if (availableRiffs != null && availableRiffs.Length > 0)
         {
-            int randomIndex = Random.Range(0, availableRiffs.Length);
-            targetSequence = availableRiffs[randomIndex].noteSequence;
+            int selectedIndex = GetNextRiffIndex();
+
+            // Clone so we don't accidentally mutate ScriptableObject asset memory
+            targetSequence = (int[])availableRiffs[selectedIndex].noteSequence.Clone();
+
+            Debug.Log($"Loaded Riff [{selectedIndex + 1}/{availableRiffs.Length}]: {availableRiffs[selectedIndex].name}");
         }
         else
         {
@@ -71,15 +83,34 @@ public class GridManager : MonoBehaviour
 
         SpawnNextTargetNote(startX, startY);
 
-        // 4. Initialize HUD display AND push the active riff sequence to the queue!
+        // 4. Initialize HUD display AND push active sequence to queue
         if (HUDManager.Instance != null)
         {
             HUDManager.Instance.UpdateScore(score);
             HUDManager.Instance.UpdateLives(lives);
             HUDManager.Instance.UpdateTimer(timeRemaining);
             HUDManager.Instance.UpdateCombo(combo);
-            HUDManager.Instance.UpdateRiffQueue(targetSequence, currentSequenceStep); // 👈 ADD THIS LINE
+            HUDManager.Instance.UpdateRiffQueue(targetSequence, currentSequenceStep);
         }
+    }
+
+    // Dynamic Bag Shuffle: Guarantees no repeated songs until all play through
+    private int GetNextRiffIndex()
+    {
+        if (riffPool.Count == 0 || riffPool.Count > availableRiffs.Length)
+        {
+            riffPool.Clear();
+            for (int i = 0; i < availableRiffs.Length; i++)
+            {
+                riffPool.Add(i);
+            }
+        }
+
+        int randomIndex = Random.Range(0, riffPool.Count);
+        int chosenIndex = riffPool[randomIndex];
+        riffPool.RemoveAt(randomIndex);
+
+        return chosenIndex;
     }
 
     void Update()
@@ -98,7 +129,6 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    // Returns the world space position of a tile at (gridX, gridY)
     public Vector3 GetTileWorldPosition(int x, int y)
     {
         if (grid != null && x >= 0 && x < cols && y >= 0 && y < rows)
@@ -113,22 +143,22 @@ public class GridManager : MonoBehaviour
 
     public void OnPlayerStepTile(TileController steppedTile)
     {
-        if (isGameOver) return;
+        if (isGameOver || steppedTile == null) return;
 
-        totalSteps++; // Track every step attempted
+        Debug.Log($"[GridManager] Stepped Tile State: {steppedTile.currentState} | Note: {steppedTile.noteIndex}");
+
+        totalSteps++;
 
         if (steppedTile.currentState == TileState.Safe)
         {
             successfulSteps++;
-            // 1. Increment Combo Streak
             combo++;
 
             if (combo > maxCombo)
             {
-                maxCombo = combo; // Track highest combo reached
+                maxCombo = combo;
             }
 
-            // 2. Exponential Score Formula
             int addedScore = 100 + (20 * combo);
             score += addedScore;
 
@@ -138,11 +168,19 @@ public class GridManager : MonoBehaviour
                 HUDManager.Instance.UpdateCombo(combo);
             }
 
-            AudioManager.Instance.PlayNote(steppedTile.noteIndex);
-            // Advance to next note in sequence
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlayNote(steppedTile.noteIndex);
+            }
+
+            if (ReplayManager.Instance != null)
+            {
+                ReplayManager.Instance.RecordStep(steppedTile.noteIndex, false, 60f - timeRemaining);
+            }
+
             currentSequenceStep++;
 
-            // WIN CONDITION: Player reached the end of the riff!
+            // WIN CONDITION: Complete level when sequence finishes
             if (currentSequenceStep >= targetSequence.Length)
             {
                 CompleteLevel();
@@ -155,30 +193,35 @@ public class GridManager : MonoBehaviour
             }
 
             SpawnNextTargetNote(steppedTile.gridX, steppedTile.gridY);
-            ReplayManager.Instance.RecordStep(steppedTile.noteIndex, false, 60f - timeRemaining);
         }
         else if (steppedTile.currentState == TileState.Lava)
         {
-            // Reset Combo to 0 on Lava hit
             combo = 0;
             lives--;
 
             if (HUDManager.Instance != null)
             {
                 HUDManager.Instance.UpdateLives(lives);
-                HUDManager.Instance.UpdateCombo(combo); // Reset HUD text to x0
+                HUDManager.Instance.UpdateCombo(combo);
             }
 
             if (CameraShake.Instance != null) CameraShake.Instance.Shake(0.2f, 0.25f);
-            AudioManager.Instance.PlayWrongStep();
+
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlayWrongStep();
+            }
+
+            if (ReplayManager.Instance != null)
+            {
+                ReplayManager.Instance.RecordStep(-1, true, 60f - timeRemaining);
+            }
 
             if (lives <= 0)
             {
                 EndGame();
                 return;
             }
-
-            ReplayManager.Instance.RecordStep(-1, true, 60f - timeRemaining);
         }
     }
 
@@ -186,11 +229,8 @@ public class GridManager : MonoBehaviour
     {
         grid = new TileController[cols, rows];
 
-        // Calculate offsets to center grid horizontally and shift vertically below the HUD
         float offsetX = (cols - 1) * tileSpacing / 2f;
         float offsetY = (rows - 1) * tileSpacing / 2f;
-
-        // Shift the Y center down (adjust -1.2f to taste)
         float verticalShift = -1.5f;
 
         for (int x = 0; x < cols; x++)
@@ -215,7 +255,6 @@ public class GridManager : MonoBehaviour
 
     public void SpawnNextTargetNote(int playerX, int playerY)
     {
-        // 1. Pick next target tile (ensuring it's NOT the player's current tile)
         int targetX, targetY;
         do
         {
@@ -225,7 +264,6 @@ public class GridManager : MonoBehaviour
 
         int noteToPlay = targetSequence[currentSequenceStep];
 
-        // Try generating a valid layout until BFS confirms a clear path exists
         bool validLayoutFound = false;
         int layoutAttempts = 0;
         int maxLayoutAttempts = 200;
@@ -234,7 +272,6 @@ public class GridManager : MonoBehaviour
         {
             layoutAttempts++;
 
-            // Clear all tiles to Neutral
             for (int x = 0; x < cols; x++)
             {
                 for (int y = 0; y < rows; y++)
@@ -243,10 +280,8 @@ public class GridManager : MonoBehaviour
                 }
             }
 
-            // Set Safe target
             grid[targetX, targetY].SetState(TileState.Safe, noteToPlay);
 
-            // Place 4 lava tiles
             int lavaCount = 4;
             int placedLava = 0;
             int lavaAttempts = 0;
@@ -257,7 +292,6 @@ public class GridManager : MonoBehaviour
                 int lx = Random.Range(0, cols);
                 int ly = Random.Range(0, rows);
 
-                // STRICT CHECK: Never place lava on Target, Player position, or existing Lava
                 bool isTarget = (lx == targetX && ly == targetY);
                 bool isPlayer = (lx == playerX && ly == playerY);
                 bool isAlreadyLava = (grid[lx, ly].currentState == TileState.Lava);
@@ -269,7 +303,6 @@ public class GridManager : MonoBehaviour
                 }
             }
 
-            // Verify if a clear path exists from Player to Target using BFS
             if (HasValidPath(playerX, playerY, targetX, targetY))
             {
                 validLayoutFound = true;
@@ -277,10 +310,8 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    // Breadth-First Search (BFS) to guarantee a walkable path exists
     private bool HasValidPath(int startX, int startY, int targetX, int targetY)
     {
-        // If starting point is invalid (-1 on game start), assume starting center (2,2)
         if (startX < 0 || startY < 0)
         {
             startX = 2;
@@ -296,10 +327,10 @@ public class GridManager : MonoBehaviour
 
         Vector2Int[] directions = new Vector2Int[]
         {
-            new Vector2Int(0, 1),   // Up
-            new Vector2Int(0, -1),  // Down
-            new Vector2Int(-1, 0),  // Left
-            new Vector2Int(1, 0)    // Right
+            new Vector2Int(0, 1),
+            new Vector2Int(0, -1),
+            new Vector2Int(-1, 0),
+            new Vector2Int(1, 0)
         };
 
         while (queue.Count > 0)
@@ -308,7 +339,7 @@ public class GridManager : MonoBehaviour
 
             if (current.x == targetX && current.y == targetY)
             {
-                return true; // Path found!
+                return true;
             }
 
             foreach (Vector2Int dir in directions)
@@ -319,7 +350,6 @@ public class GridManager : MonoBehaviour
 
                 if (nextX >= 0 && nextX < cols && nextY >= 0 && nextY < rows)
                 {
-                    // Can walk on Neutral or Safe tiles (never Lava)
                     if (!visited.Contains(nextPos) && grid[nextX, nextY].currentState != TileState.Lava)
                     {
                         visited.Add(nextPos);
@@ -329,14 +359,13 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        return false; // Path blocked by lava wall
+        return false;
     }
 
     void CompleteLevel()
     {
-        isGameOver = true; // Prevents further movement or timer updates
+        isGameOver = true;
 
-        // Freeze player input and physics
         PlayerController player = FindFirstObjectByType<PlayerController>();
         if (player != null)
         {
@@ -351,7 +380,6 @@ public class GridManager : MonoBehaviour
 
         float accuracy = totalSteps > 0 ? ((float)successfulSteps / totalSteps) * 100f : 0f;
 
-        // Show Level Complete UI Panel
         if (HUDManager.Instance != null)
         {
             HUDManager.Instance.ShowLevelComplete(score, accuracy, maxCombo);
@@ -367,23 +395,20 @@ public class GridManager : MonoBehaviour
     {
         isGameOver = true;
 
-        // Freeze player position in place
         PlayerController player = FindFirstObjectByType<PlayerController>();
         if (player != null)
         {
             Rigidbody2D rb = player.GetComponent<Rigidbody2D>();
             if (rb != null)
             {
-                rb.linearVelocity = Vector2.zero; // Stop all momentum immediately
-                rb.simulated = false;              // Disable physics simulation
+                rb.linearVelocity = Vector2.zero;
+                rb.simulated = false;
             }
             player.enabled = false;
         }
 
-        // Calculate percentage accuracy safely
         float accuracy = totalSteps > 0 ? ((float)successfulSteps / totalSteps) * 100f : 0f;
 
-        // Pass final stats to HUD
         if (HUDManager.Instance != null)
         {
             HUDManager.Instance.ShowGameOver(score, accuracy, maxCombo);

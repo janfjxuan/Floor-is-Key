@@ -21,7 +21,6 @@ public class HUDManager : MonoBehaviour
     public Sprite defaultKeySprite;
     public Sprite selectedKeySprite;
 
-    // Note name lookup matching your 13 chromatic audio clips (0 = C4, 12 = C5)
     private string[] noteNames = new string[]
     {
         "C4", "C#4", "D4", "D#4", "E4", "F4", "F#4", "G4", "G#4", "A4", "A#4", "B4", "C5"
@@ -46,6 +45,10 @@ public class HUDManager : MonoBehaviour
     [Header("Heart UI References")]
     public GameObject[] heartImages;
 
+    [Header("Replay & Shared UI References")]
+    public TextMeshProUGUI replayStatusText;
+    public GameObject playAgainButton;
+
     void Awake()
     {
         Instance = this;
@@ -57,9 +60,7 @@ public class HUDManager : MonoBehaviour
 
         for (int i = 0; i < queueSlots.Length; i++)
         {
-            // Left-to-right offset: i = 0 is current step, i = 1 is next step, etc.
             int seqIndex = currentStep + i;
-
             int targetSlot = i;
 
             if (seqIndex < sequence.Length)
@@ -78,7 +79,6 @@ public class HUDManager : MonoBehaviour
             }
             else
             {
-                // Clear or hide slots once the remaining sequence is shorter than queue length
                 queueSlots[targetSlot].gameObject.SetActive(false);
             }
         }
@@ -86,13 +86,11 @@ public class HUDManager : MonoBehaviour
 
     public void UpdateTimer(float timeRemaining)
     {
-        // Update numeric display
         if (timerText != null)
         {
             timerText.text = $"{Mathf.CeilToInt(timeRemaining)}s";
         }
 
-        // Update progress bar fill percentage (clamped 0.0 to 1.0)
         if (timerFillImage != null)
         {
             timerFillImage.fillAmount = Mathf.Clamp01(timeRemaining / maxTime);
@@ -111,7 +109,6 @@ public class HUDManager : MonoBehaviour
         {
             for (int i = 0; i < heartImages.Length; i++)
             {
-                // Turns off heart graphics as lives decrease
                 heartImages[i].SetActive(i < currentLives);
             }
         }
@@ -131,6 +128,7 @@ public class HUDManager : MonoBehaviour
         {
             gameOverPanel.SetActive(true);
         }
+
         if (finalScoreText != null)
             finalScoreText.text = $"{finalScore}";
 
@@ -139,6 +137,9 @@ public class HUDManager : MonoBehaviour
 
         if (maxComboText != null)
             maxComboText.text = $"{maxCombo}x";
+
+        // Dynamically reparent text and button to the GameOverPanel
+        AttachReplayUI(gameOverPanel.transform);
     }
 
     public void ShowLevelComplete(int finalScore, float accuracy, int maxCombo)
@@ -155,6 +156,54 @@ public class HUDManager : MonoBehaviour
 
             if (levelCompleteMaxComboText != null)
                 levelCompleteMaxComboText.text = $"{maxCombo}x";
+        }
+
+        // Dynamically reparent text and button to the LevelCompletePanel
+        AttachReplayUI(levelCompletePanel.transform);
+    }
+
+    // Reparents the single text and button to whichever end-screen panel is active
+    private void AttachReplayUI(Transform targetPanel)
+    {
+        if (targetPanel == null) return;
+
+        if (replayStatusText != null)
+        {
+            replayStatusText.transform.SetParent(targetPanel, false);
+            replayStatusText.rectTransform.anchoredPosition = new Vector2(0f, 145f);
+        }
+
+        if (playAgainButton != null)
+        {
+            playAgainButton.transform.SetParent(targetPanel, false);
+            playAgainButton.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -240f);
+            playAgainButton.SetActive(false);
+        }
+    }
+
+    public void SetReplayStatePlaying()
+    {
+        if (replayStatusText != null)
+        {
+            replayStatusText.text = "► REPLAYING YOUR MELODY...";
+        }
+
+        if (playAgainButton != null)
+        {
+            playAgainButton.SetActive(false);
+        }
+    }
+
+    public void SetReplayStateComplete()
+    {
+        if (replayStatusText != null)
+        {
+            replayStatusText.text = "♫ MELODY PLAYBACK COMPLETE!";
+        }
+
+        if (playAgainButton != null)
+        {
+            playAgainButton.SetActive(true);
         }
     }
 
