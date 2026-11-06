@@ -15,7 +15,6 @@ public class ReplayManager : MonoBehaviour
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
-            Debug.Log("[ReplayManager] Singleton Initialized.");
         }
         else if (Instance != this)
         {
@@ -28,14 +27,12 @@ public class ReplayManager : MonoBehaviour
         if (!isLava && noteIndex >= 0)
         {
             recordedNotes.Add(noteIndex);
-            Debug.Log($"[ReplayManager] Saved Note #{recordedNotes.Count}: Index {noteIndex}");
         }
     }
 
     public void ClearRecording()
     {
         recordedNotes.Clear();
-        Debug.Log("[ReplayManager] Cleared recorded steps.");
     }
 
     public void StartReplay()
@@ -46,6 +43,12 @@ public class ReplayManager : MonoBehaviour
 
     private IEnumerator ReplaySequenceRoutine()
     {
+        PlayerController player = FindFirstObjectByType<PlayerController>();
+        if (player != null)
+        {
+            player.enabled = false;
+        }
+
         if (HUDManager.Instance != null)
         {
             HUDManager.Instance.SetReplayStatePlaying();
@@ -61,9 +64,13 @@ public class ReplayManager : MonoBehaviour
             {
                 int noteToPlay = recordedNotes[i];
 
-                if (AudioManager.Instance != null)
+                if (noteToPlay >= 0 && AudioManager.Instance != null)
                 {
                     AudioManager.Instance.PlayNote(noteToPlay);
+                }
+                else if (noteToPlay == -1 && AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlayWrongStep();
                 }
 
                 yield return new WaitForSeconds(stepDelay);

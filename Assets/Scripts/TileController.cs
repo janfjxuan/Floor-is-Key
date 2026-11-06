@@ -24,16 +24,16 @@ public class TileController : MonoBehaviour
         switch (newState)
         {
             case TileState.Neutral:
-                spriteRenderer.color = new Color(0.1f, 0.1f, 0.18f); // Dark purple
+                spriteRenderer.color = new Color(0.1f, 0.1f, 0.18f);
                 break;
             case TileState.Safe:
-                spriteRenderer.color = new Color(0f, 0.95f, 1f); // Neon Cyan
+                spriteRenderer.color = new Color(0f, 0.95f, 1f);
                 break;
             case TileState.Lava:
-                spriteRenderer.color = new Color(1f, 0f, 0.33f); // Pulsing Red
+                spriteRenderer.color = new Color(1f, 0f, 0.33f);
                 break;
             case TileState.Crumbling:
-                spriteRenderer.color = new Color(1f, 0.55f, 0f); // Orange
+                spriteRenderer.color = new Color(1f, 0.55f, 0f);
                 break;
         }
     }
@@ -42,8 +42,15 @@ public class TileController : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
-            // Tell the GridManager/GameManager that the player stepped on this tile
             GridManager.Instance.OnPlayerStepTile(this);
+        }
+    }
+
+    public void SetVisualHidden()
+    {
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.color = new Color(0.1f, 0.1f, 0.18f);
         }
     }
 }
