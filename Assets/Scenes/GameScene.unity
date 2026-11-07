@@ -2249,6 +2249,9 @@ GameObject:
   m_Component:
   - component: {fileID: 798377568}
   - component: {fileID: 798377567}
+  - component: {fileID: 798377569}
+  - component: {fileID: 798377571}
+  - component: {fileID: 798377570}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -2268,6 +2271,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 99991a372b48b1d4f9b18ef29959e4da, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GridManager
+  toxicManager: {fileID: 0}
+  pathfinder: {fileID: 0}
+  recallManager: {fileID: 0}
   tilePrefab: {fileID: 3088715225703042911, guid: 4ad71127d0be5774ebfbd0dec30d45ca, type: 3}
   rows: 5
   cols: 5
@@ -2283,15 +2289,10 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 288bf8da4e7734543a713c34f5e975ee, type: 2}
   - {fileID: 11400000, guid: 73cebe7e66dece040a24f41fa6a4db47, type: 2}
   - {fileID: 11400000, guid: c512e7549fc140f48a8cd321c7ce05a9, type: 2}
-  previewDuration: 3
-  baseSecondsPerNote: 0.45
-  isRecallModeActive: 0
-  chunkLengths: 040000000600000008000000
+  targetSequence: 
+  currentSequenceStep: 0
   ghostPrefab: {fileID: 7716712244162962188, guid: b1abf1cf44073bd46848ec386fe1f23e, type: 3}
   ghostMoveInterval: 1
-  toxicMelonPrefab: {fileID: 2769013988511692094, guid: beccc45d4252b3242803220cf7260c20, type: 3}
-  toxicDuration: 4
-  isToxicActive: 0
   floatingTextPrefab: {fileID: 7485255341426392042, guid: 0077a1b39676de447b5be0c197b19027, type: 3}
 --- !u!4 &798377568
 Transform:
@@ -2308,6 +2309,52 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &798377569
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 798377566}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a4c489dad60aae46b97463f131bcc56, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ToxicItemManager
+  toxicMelonPrefab: {fileID: 2769013988511692094, guid: beccc45d4252b3242803220cf7260c20, type: 3}
+  toxicDuration: 4
+  isToxicActive: 0
+--- !u!114 &798377570
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 798377566}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5e2706af7b5bf7488513a27002a34c2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RecallModeManager
+  previewDuration: 3
+  baseSecondsPerNote: 0.45
+  isRecallModeActive: 0
+  recallModePath: []
+  chunkLengths: 040000000600000008000000
+  currentChunkIndex: 0
+  currentChunkNotes: 
+--- !u!114 &798377571
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 798377566}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 97d30c79870778c41a56cf38c451fc7c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GridPathfinder
 --- !u!1 &801693040
 GameObject:
   m_ObjectHideFlags: 0
@@ -2768,6 +2815,8 @@ MonoBehaviour:
   previousGridY: 2
   chunkStartX: 2
   chunkStartY: 2
+  lastDirX: 0
+  lastDirY: 0
 --- !u!95 &918007864
 Animator:
   serializedVersion: 7
@@ -11188,6 +11237,11 @@ MonoBehaviour:
   livesText: {fileID: 1774493586}
   scoreText: {fileID: 610497871}
   comboText: {fileID: 767876291}
+  heartImages:
+  - {fileID: 1712533842}
+  - {fileID: 338803917}
+  - {fileID: 1726687134}
+  gridBorderFrame: {fileID: 961029864}
   queueSlots:
   - {fileID: 1460577558}
   - {fileID: 401884458}
@@ -11210,6 +11264,8 @@ MonoBehaviour:
   selectedKeySprite: {fileID: -431485859309815286, guid: ae721f7e55e7e364c99993f8d9afa902, type: 3}
   timerFillImage: {fileID: 2145681784}
   maxTime: 60
+  phaseText: {fileID: 2111099759}
+  toxicOverdriveText: {fileID: 1287223104}
   gameOverPanel: {fileID: 2012136876}
   finalScoreText: {fileID: 2035339637}
   accuracyText: {fileID: 166362565}
@@ -11225,15 +11281,8 @@ MonoBehaviour:
   finalScoreLabel: {fileID: 1969549032}
   accuracyLabel: {fileID: 1592235872}
   maxComboLabel: {fileID: 471312244}
-  heartImages:
-  - {fileID: 1712533842}
-  - {fileID: 338803917}
-  - {fileID: 1726687134}
   replayStatusText: {fileID: 2024747712}
   playAgainButton: {fileID: 420171873}
-  phaseText: {fileID: 2111099759}
-  toxicOverdriveText: {fileID: 1287223104}
-  gridBorderFrame: {fileID: 961029864}
 --- !u!1 &1904829406
 GameObject:
   m_ObjectHideFlags: 0

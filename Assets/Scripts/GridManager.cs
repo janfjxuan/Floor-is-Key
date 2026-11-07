@@ -2,12 +2,21 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-/// Core game loop manager handling grid generation, state tracking,
-/// mode routing (Standard vs. Recall), ghost spawning, and Toxic Overdrive mechanics.
-
+/// <summary>
+/// Core game loop coordinator managing grid initialization, score/lives tracking,
+/// mode routing, and delegation to specialized sub-managers.
+/// </summary>
 public class GridManager : MonoBehaviour
 {
     public static GridManager Instance;
+
+    [Header("Core Sub-Managers")]
+    public ToxicItemManager toxicManager;
+    public GridPathfinder pathfinder;
+    public RecallModeManager recallManager;
+
+    public bool isToxicActive => toxicManager != null && toxicManager.isToxicActive;
+    public bool isRecallModeActive => recallManager != null && recallManager.isRecallModeActive;
 
     [Header("Grid Configuration")]
     public GameObject tilePrefab;
@@ -15,7 +24,6 @@ public class GridManager : MonoBehaviour
     public int cols = 5;
     public float tileSpacing = 1.1f;
     private TileController[,] grid;
-
 
     [Header("Game State")]
     public float timeRemaining = 60f;
@@ -32,30 +40,13 @@ public class GridManager : MonoBehaviour
     [Header("Riff Presets")]
     public RiffData[] availableRiffs;
     private static List<int> riffPool = new List<int>();
-    private int[] targetSequence;
-    private int currentSequenceStep = 0;
-
-    [Header("Recall Mode Settings")]
-    public float previewDuration = 3.0f;
-    public float baseSecondsPerNote = 0.45f;
-    public bool isRecallModeActive = false;
-    private List<Vector2Int> recallModePath = new List<Vector2Int>();
-
-    [Header("Dynamic Escalation Settings")]
-    public int[] chunkLengths = new int[] { 4, 6, 8 };
-    private int currentChunkIndex = 0;
-    private int[] currentChunkNotes;
+    public int[] targetSequence;
+    public int currentSequenceStep = 0;
 
     [Header("Ghost Settings")]
     public GridGhost ghostPrefab;
     private GridGhost activeGhost;
     public float ghostMoveInterval = 1.0f;
-
-    [Header("Toxic Overdrive Settings")]
-    public GameObject toxicMelonPrefab;
-    public float toxicDuration = 4.0f;
-    public bool isToxicActive = false;
-    private Coroutine toxicCoroutine;
 
     [Header("Floating Feedback Prefab")]
     public GameObject floatingTextPrefab;
@@ -63,6 +54,11 @@ public class GridManager : MonoBehaviour
     void Awake()
     {
         Instance = this;
+
+        // Auto-fetch attached sub-managers if not manually linked in Inspector
+        if (toxicManager == null) toxicManager = GetComponent<ToxicItemManager>();
+        if (pathfinder == null) pathfinder = GetComponent<GridPathfinder>();
+        if (recallManager == null) recallManager = GetComponent<RecallModeManager>();
     }
 
     void Start()
@@ -80,8 +76,13 @@ public class GridManager : MonoBehaviour
         totalSteps = 0;
         successfulSteps = 0;
         currentSequenceStep = 0;
-        currentChunkIndex = 0;
 
+        if (recallManager != null)
+        {
+            recallManager.currentChunkIndex = 0;
+        }
+
+        // Safe riff loading
         if (availableRiffs != null && availableRiffs.Length > 0)
         {
             int selectedIndex = GetNextRiffIndex();
@@ -112,11 +113,11 @@ public class GridManager : MonoBehaviour
 
         if (GameManager.SelectedMode == GameMode.RecallMode)
         {
-            StartCoroutine(StartRecallRoutine());
+            StartRecallModeRoutine();
         }
         else
         {
-            isRecallModeActive = false;
+            if (recallManager != null) recallManager.isRecallModeActive = false;
             SpawnNextTargetNote(startX, startY);
             SpawnGhost();
         }
@@ -148,7 +149,7 @@ public class GridManager : MonoBehaviour
     }
 
     // =========================================================================
-    // GRID CREATION & ACCESSORS
+    // GRID GENERATION & ACCESSORS
     // =========================================================================
     void GenerateGrid()
     {
@@ -216,15 +217,8 @@ public class GridManager : MonoBehaviour
         }
 
         PlayerController player = FindFirstObjectByType<PlayerController>();
-        if (player != null)
-        {
-            player.gameObject.SetActive(visible);
-        }
-
-        if (activeGhost != null)
-        {
-            activeGhost.gameObject.SetActive(visible);
-        }
+        if (player != null) player.gameObject.SetActive(visible);
+        if (activeGhost != null) activeGhost.gameObject.SetActive(visible);
     }
 
     private int GetNextRiffIndex()
@@ -261,13 +255,15 @@ public class GridManager : MonoBehaviour
 
         PlayerController player = FindFirstObjectByType<PlayerController>();
 
-        // =========================================================================
-        // RECALL MODE LOGIC (Strict sequence memory, hidden tiles)
-        // =========================================================================
+        // ---------------------------------------------------------------------
+        // RECALL MODE STEP HANDLING
+        // ---------------------------------------------------------------------
         if (GameManager.SelectedMode == GameMode.RecallMode)
         {
-            // Ignore start tile triggers right after phase spawn
-            if (recallModePath.Count > 0 && steppedTile.gridX == recallModePath[0].x && steppedTile.gridY == recallModePath[0].y && currentSequenceStep == 0)
+            if (recallManager != null && recallManager.recallModePath.Count > 0 &&
+                steppedTile.gridX == recallManager.recallModePath[0].x &&
+                steppedTile.gridY == recallManager.recallModePath[0].y &&
+                currentSequenceStep == 0)
             {
                 return;
             }
@@ -294,41 +290,45 @@ public class GridManager : MonoBehaviour
 
                 currentSequenceStep++;
 
-                int activeChunkLength = currentChunkNotes != null ? currentChunkNotes.Length : 4;
+                int activeChunkLength = (recallManager != null && recallManager.currentChunkNotes != null)
+                    ? recallManager.currentChunkNotes.Length
+                    : 4;
 
                 if (currentSequenceStep >= activeChunkLength)
                 {
-                    currentChunkIndex++;
+                    if (recallManager != null) recallManager.currentChunkIndex++;
 
-                    if (GetCurrentChunkStartIndex() >= targetSequence.Length)
+                    if (recallManager != null && recallManager.GetCurrentChunkStartIndex() >= targetSequence.Length)
                     {
                         CompleteLevel();
                         return;
                     }
                     else
                     {
+                        currentSequenceStep = 0; // Reset step counter before phase transition routine!
                         StartCoroutine(TransitionToNextChunkRoutine());
                         return;
                     }
                 }
 
-                if (HUDManager.Instance != null) HUDManager.Instance.UpdateRiffQueue(currentChunkNotes, currentSequenceStep);
+                if (HUDManager.Instance != null && recallManager != null)
+                {
+                    HUDManager.Instance.UpdateRiffQueue(recallManager.currentChunkNotes, currentSequenceStep);
+                }
                 SpawnNextRecallModeTarget();
             }
             else
             {
-                // Wrong step in Recall Mode (stepping on Neutral or Lava)
                 HandleStepError(player);
             }
         }
-        // =========================================================================
-        // STANDARD MODE LOGIC (Visible Grid, Neutral Pathing, Lava Hazards & Ghosts)
-        // =========================================================================
+        // ---------------------------------------------------------------------
+        // STANDARD MODE STEP HANDLING
+        // ---------------------------------------------------------------------
         else
         {
             if (steppedTile.currentState == TileState.Safe)
             {
-                // Target hit!
                 totalSteps++;
                 successfulSteps++;
                 combo++;
@@ -366,7 +366,6 @@ public class GridManager : MonoBehaviour
             }
             else if (steppedTile.currentState == TileState.Neutral)
             {
-                // Safe path traversal towards target note
                 totalSteps++;
                 if (player != null) player.UpdateGridPosition(steppedTile.gridX, steppedTile.gridY);
 
@@ -377,7 +376,6 @@ public class GridManager : MonoBehaviour
             }
             else if (steppedTile.currentState == TileState.Lava)
             {
-                // Standard mode lava collision
                 HandleStepError(player);
             }
             else if (steppedTile.currentState == TileState.Toxic)
@@ -404,7 +402,6 @@ public class GridManager : MonoBehaviour
                 steppedTile.SetState(TileState.Neutral);
                 TriggerToxicOverdrive();
 
-                // Pass exact movement directions so Pac-Man reliably leaps forward
                 if (player != null)
                 {
                     player.PerformToxicLeap(player.lastDirX, player.lastDirY);
@@ -442,15 +439,26 @@ public class GridManager : MonoBehaviour
 
         if (GameManager.SelectedMode == GameMode.RecallMode)
         {
-            isRecallModeActive = true;
-            currentSequenceStep = 0;
+            if (recallManager != null) recallManager.isRecallModeActive = true;
+            currentSequenceStep = 0; // Reset step counter on mistake
 
-            if (player != null) player.SnapToChunkStartTile();
+            // =========================================================================
+            // RECALL MODE RESPRAWN FIX
+            // Update chunk starting position to position 0 of the active chunk path!
+            // =========================================================================
+            if (player != null && recallManager != null && recallManager.recallModePath.Count > 0)
+            {
+                Vector2Int startPos = recallManager.recallModePath[0];
+                player.SetChunkStartPosition(startPos.x, startPos.y);
+                player.SnapToChunkStartTile();
+            }
+            // =========================================================================
+
             SpawnNextRecallModeTarget();
 
-            if (HUDManager.Instance != null && currentChunkNotes != null)
+            if (HUDManager.Instance != null && recallManager != null && recallManager.currentChunkNotes != null)
             {
-                HUDManager.Instance.UpdateRiffQueue(currentChunkNotes, 0);
+                HUDManager.Instance.UpdateRiffQueue(recallManager.currentChunkNotes, 0);
             }
 
             StartCoroutine(UnlockPreviewAfterDelay(0.3f));
@@ -517,266 +525,55 @@ public class GridManager : MonoBehaviour
                 }
             }
 
-            if (HasValidPath(playerX, playerY, targetX, targetY))
+            if (pathfinder != null && pathfinder.HasValidPath(grid, cols, rows, playerX, playerY, targetX, targetY))
             {
                 validLayoutFound = true;
 
-                if (Random.value < 0.30f)
+                if (toxicManager != null)
                 {
-                    List<Vector2Int> availableTiles = new List<Vector2Int>();
-
-                    for (int x = 0; x < cols; x++)
-                    {
-                        for (int y = 0; y < rows; y++)
-                        {
-                            bool isPlayer = (x == playerX && y == playerY);
-                            bool isGhost = (activeGhost != null && activeGhost.gridPosition.x == x && activeGhost.gridPosition.y == y);
-
-                            // Only place on empty Neutral tiles (not target, not lava, not player, not ghost)
-                            if (grid[x, y].currentState == TileState.Neutral && !isPlayer && !isGhost)
-                            {
-                                availableTiles.Add(new Vector2Int(x, y));
-                            }
-                        }
-                    }
-
-                    if (availableTiles.Count > 0)
-                    {
-                        Vector2Int toxicPos = availableTiles[Random.Range(0, availableTiles.Count)];
-                        grid[toxicPos.x, toxicPos.y].SetState(TileState.Toxic);
-                        grid[toxicPos.x, toxicPos.y].SpawnToxicItem(toxicMelonPrefab);
-                    }
+                    toxicManager.TrySpawnMelon(grid, cols, rows, playerX, playerY, activeGhost);
                 }
             }
         }
-    }
-
-    private bool HasValidPath(int startX, int startY, int targetX, int targetY)
-    {
-        if (startX < 0 || startY < 0)
-        {
-            startX = 2;
-            startY = 2;
-        }
-
-        Queue<Vector2Int> queue = new Queue<Vector2Int>();
-        HashSet<Vector2Int> visited = new HashSet<Vector2Int>();
-
-        Vector2Int start = new Vector2Int(startX, startY);
-        queue.Enqueue(start);
-        visited.Add(start);
-
-        Vector2Int[] directions = new Vector2Int[]
-        {
-            new Vector2Int(0, 1),
-            new Vector2Int(0, -1),
-            new Vector2Int(-1, 0),
-            new Vector2Int(1, 0)
-        };
-
-        while (queue.Count > 0)
-        {
-            Vector2Int current = queue.Dequeue();
-
-            if (current.x == targetX && current.y == targetY) return true;
-
-            foreach (Vector2Int dir in directions)
-            {
-                int nextX = current.x + dir.x;
-                int nextY = current.y + dir.y;
-                Vector2Int nextPos = new Vector2Int(nextX, nextY);
-
-                if (nextX >= 0 && nextX < cols && nextY >= 0 && nextY < rows)
-                {
-                    if (!visited.Contains(nextPos) && grid[nextX, nextY].currentState != TileState.Lava)
-                    {
-                        visited.Add(nextPos);
-                        queue.Enqueue(nextPos);
-                    }
-                }
-            }
-        }
-
-        return false;
     }
 
     // =========================================================================
-    // RECALL MODE ROUTINES & PATHING
+    // RECALL MODE ROUTINES & DELEGATION
     // =========================================================================
-    public IEnumerator StartRecallRoutine()
+    public void StartRecallModeRoutine()
     {
-        isRecallModeActive = true;
-
-        PlayerController player = FindFirstObjectByType<PlayerController>();
-        if (player != null)
+        if (recallManager != null)
         {
-            player.gameObject.SetActive(false);
-        }
+            // Reset current sequence step counter whenever a new chunk starts
+            currentSequenceStep = 0;
 
-        if (activeGhost != null)
-        {
-            activeGhost.gameObject.SetActive(false);
-        }
-
-        int startIndex = GetCurrentChunkStartIndex();
-
-        // Dynamically get target length: use chunkLengths array, or stick to the max chunk size for remaining notes
-        int targetChunkLength = (currentChunkIndex < chunkLengths.Length)
-            ? chunkLengths[currentChunkIndex]
-            : chunkLengths[chunkLengths.Length - 1];
-
-        // Ensure we don't overshoot the total sequence length
-        int chunkLength = Mathf.Min(targetChunkLength, targetSequence.Length - startIndex);
-
-        currentChunkNotes = new int[chunkLength];
-        System.Array.Copy(targetSequence, startIndex, currentChunkNotes, 0, chunkLength);
-
-        int startX = player != null ? player.gridX : 2;
-        int startY = player != null ? player.gridY : 2;
-
-        GenerateRecallModeSequence(startX, startY, chunkLength);
-
-        for (int x = 0; x < cols; x++)
-            for (int y = 0; y < rows; y++)
-                grid[x, y].SetState(TileState.Neutral);
-
-        if (HUDManager.Instance != null)
-        {
-            HUDManager.Instance.ShowPhaseText("LISTEN AND MEMORISE", 1.2f);
-        }
-
-        yield return new WaitForSeconds(0.8f);
-
-        float currentSecondsPerNote = Mathf.Max(0.15f, GameManager.CustomPreviewSpeed - (currentChunkIndex * 0.05f));
-
-        for (int i = 0; i < currentChunkNotes.Length; i++)
-        {
-            Vector2Int pos = recallModePath[i + 1];
-            int noteForTile = currentChunkNotes[i];
-
-            grid[pos.x, pos.y].SetState(TileState.Safe, noteForTile);
-
-            if (AudioManager.Instance != null)
-            {
-                AudioManager.Instance.PlayNote(noteForTile);
-            }
-
-            yield return new WaitForSeconds(currentSecondsPerNote);
-        }
-
-        yield return new WaitForSeconds(0.5f);
-
-        for (int x = 0; x < cols; x++)
-            for (int y = 0; y < rows; y++)
-                grid[x, y].SetState(TileState.Neutral);
-
-        if (HUDManager.Instance != null)
-        {
-            HUDManager.Instance.ShowPhaseText("PLAY IT BACK!", 1.5f);
-        }
-
-        if (HUDManager.Instance != null && currentChunkNotes != null)
-        {
-            HUDManager.Instance.UpdateRiffQueue(currentChunkNotes, 0);
-        }
-
-        yield return new WaitForSeconds(0.3f);
-
-        currentSequenceStep = 0;
-
-        if (player != null && recallModePath.Count > 0)
-        {
-            Vector2Int startPos = recallModePath[0];
-            player.SetChunkStartPosition(startPos.x, startPos.y);
-            player.gameObject.SetActive(true);
-        }
-
-        if (activeGhost != null)
-        {
-            activeGhost.gameObject.SetActive(false);
-        }
-
-        SpawnNextRecallModeTarget();
-
-        yield return new WaitForSeconds(0.1f);
-        isRecallModeActive = false;
-    }
-
-    void GenerateRecallModeSequence(int startX, int startY, int sequenceLimit)
-    {
-        recallModePath.Clear();
-
-        Vector2Int startPos = new Vector2Int(startX, startY);
-        recallModePath.Add(startPos);
-
-        if (!BuildSelfAvoidingPath(startPos, sequenceLimit))
-        {
-            // Fallback: If strict non-overlapping path fails on a tight grid, reset and try random valid steps
-            Debug.LogWarning("Could not find completely non-overlapping path of length " + sequenceLimit);
-        }
-    }
-
-    private bool BuildSelfAvoidingPath(Vector2Int currentPos, int stepsRemaining)
-    {
-        if (stepsRemaining <= 0) return true;
-
-        Vector2Int[] directions = new Vector2Int[]
-        {
-            new Vector2Int(0, 1),
-            new Vector2Int(0, -1),
-            new Vector2Int(-1, 0),
-            new Vector2Int(1, 0)
-        };
-
-        // Shuffle directions for randomized paths each run
-        for (int i = 0; i < directions.Length; i++)
-        {
-            Vector2Int temp = directions[i];
-            int randomIndex = Random.Range(i, directions.Length);
-            directions[i] = directions[randomIndex];
-            directions[randomIndex] = temp;
-        }
-
-        foreach (Vector2Int dir in directions)
-        {
-            int nextX = currentPos.x + dir.x;
-            int nextY = currentPos.y + dir.y;
-            Vector2Int nextPos = new Vector2Int(nextX, nextY);
-
-            // Ensure step stays inside grid bounds AND has not been visited yet in this sequence
-            if (nextX >= 0 && nextX < cols && nextY >= 0 && nextY < rows && !recallModePath.Contains(nextPos))
-            {
-                recallModePath.Add(nextPos);
-
-                if (BuildSelfAvoidingPath(nextPos, stepsRemaining - 1))
+            StartCoroutine(recallManager.StartRecallRoutine(
+                grid, cols, rows, targetSequence, activeGhost,
+                (x, y) =>
                 {
-                    return true;
-                }
-
-                // Backtrack if this path gets trapped early
-                recallModePath.RemoveAt(recallModePath.Count - 1);
-            }
+                    PlayerController p = FindFirstObjectByType<PlayerController>();
+                    if (p != null) p.SetChunkStartPosition(x, y);
+                },
+                () => SpawnNextRecallModeTarget()
+            ));
         }
-
-        return false;
     }
 
-    void SpawnNextRecallModeTarget()
+    public void SpawnNextRecallModeTarget()
     {
-        if (currentSequenceStep >= recallModePath.Count - 1) return;
+        if (recallManager == null || currentSequenceStep >= recallManager.recallModePath.Count - 1) return;
 
-        Vector2Int targetPos = recallModePath[currentSequenceStep + 1];
-        int noteToPlay = currentChunkNotes[currentSequenceStep];
+        Vector2Int targetPos = recallManager.recallModePath[currentSequenceStep + 1];
+        int noteToPlay = recallManager.currentChunkNotes[currentSequenceStep];
 
         PlayerController player = FindFirstObjectByType<PlayerController>();
         Vector2Int playerPos = player != null ? new Vector2Int(player.gridX, player.gridY) : new Vector2Int(-1, -1);
-        Vector2Int startPos = recallModePath.Count > 0 ? recallModePath[0] : new Vector2Int(-1, -1);
+        Vector2Int startPos = recallManager.recallModePath.Count > 0 ? recallManager.recallModePath[0] : new Vector2Int(-1, -1);
 
         for (int x = 0; x < cols; x++)
         {
             for (int y = 0; y < rows; y++)
             {
-                // Set target tile safe, set player start tile to Neutral, rest to Lava
                 if ((x == playerPos.x && y == playerPos.y) || (x == startPos.x && y == startPos.y))
                 {
                     grid[x, y].SetState(TileState.Neutral);
@@ -796,31 +593,19 @@ public class GridManager : MonoBehaviour
     private IEnumerator UnlockPreviewAfterDelay(float delay)
     {
         yield return new WaitForSeconds(delay);
-        isRecallModeActive = false;
+        if (recallManager != null) recallManager.isRecallModeActive = false;
     }
 
     private IEnumerator TransitionToNextChunkRoutine()
     {
-        isRecallModeActive = true;
+        if (recallManager != null) recallManager.isRecallModeActive = true;
         yield return new WaitForSeconds(0.6f);
-        StartCoroutine(StartRecallRoutine());
-    }
-
-    private int GetCurrentChunkStartIndex()
-    {
-        int index = 0;
-        for (int i = 0; i < currentChunkIndex; i++)
-        {
-            int length = (i < chunkLengths.Length) ? chunkLengths[i] : chunkLengths[chunkLengths.Length - 1];
-            index += length;
-        }
-        return index;
+        StartRecallModeRoutine();
     }
 
     // =========================================================================
     // GHOST MECHANICS
     // =========================================================================
-
     void SpawnGhost()
     {
         if (ghostPrefab == null) return;
@@ -833,7 +618,6 @@ public class GridManager : MonoBehaviour
         {
             for (int y = 0; y < rows; y++)
             {
-                // Must not be the target (Safe) tile AND must not be the player tile
                 if (grid[x, y] != null &&
                     grid[x, y].currentState != TileState.Safe &&
                     (x != playerPos.x || y != playerPos.y))
@@ -860,7 +644,6 @@ public class GridManager : MonoBehaviour
 
     public void CheckPlayerGhostCollision(Vector2Int playerPos)
     {
-        // Ignore ghost collision checks completely in Recall Mode
         if (GameManager.SelectedMode == GameMode.RecallMode) return;
 
         if (activeGhost != null && activeGhost.gameObject.activeSelf && activeGhost.CheckPlayerCollision(playerPos))
@@ -881,11 +664,7 @@ public class GridManager : MonoBehaviour
         }
 
         if (CameraShake.Instance != null) CameraShake.Instance.Shake(0.25f, 0.3f);
-
-        if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.PlayWrongStep();
-        }
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayWrongStep();
 
         if (lives <= 0)
         {
@@ -894,51 +673,21 @@ public class GridManager : MonoBehaviour
     }
 
     // =========================================================================
-    // TOXIC OVERDRIVE & COLLECTIBLES
+    // TOXIC OVERDRIVE DELEGATION
     // =========================================================================
-
     public void TriggerToxicOverdrive()
     {
-        if (toxicCoroutine != null) StopCoroutine(toxicCoroutine);
-        toxicCoroutine = StartCoroutine(ToxicOverdriveRoutine());
-    }
-
-    private IEnumerator ToxicOverdriveRoutine()
-    {
-        isToxicActive = true;
-
-        if (HUDManager.Instance != null)
-        {
-            HUDManager.Instance.ShowToxicOverdriveText(1.5f);
-        }
-
-        yield return new WaitForSeconds(toxicDuration);
-
-        isToxicActive = false;
+        if (toxicManager != null) toxicManager.TriggerToxicOverdrive();
     }
 
     public void ClearAllToxicMelons()
     {
-        for (int x = 0; x < cols; x++)
-        {
-            for (int y = 0; y < rows; y++)
-            {
-                if (grid[x, y] != null)
-                {
-                    grid[x, y].ClearItem();
-                    if (grid[x, y].currentState == TileState.Toxic)
-                    {
-                        grid[x, y].currentState = TileState.Neutral;
-                    }
-                }
-            }
-        }
+        if (toxicManager != null) toxicManager.ClearAllToxicMelons(grid, cols, rows);
     }
 
     // =========================================================================
     // LEVEL COMPLETION & GAME OVER
     // =========================================================================
-
     void CompleteLevel()
     {
         isGameOver = true;
@@ -959,15 +708,8 @@ public class GridManager : MonoBehaviour
 
         float accuracy = totalSteps > 0 ? ((float)successfulSteps / totalSteps) * 100f : 0f;
 
-        if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.PlayLevelCompleteSound();
-        }
-
-        if (HUDManager.Instance != null)
-        {
-            HUDManager.Instance.ShowLevelComplete(score, accuracy, maxCombo);
-        }
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayLevelCompleteSound();
+        if (HUDManager.Instance != null) HUDManager.Instance.ShowLevelComplete(score, accuracy, maxCombo);
 
         StartCoroutine(StartReplayWithDelayRoutine(1.8f));
     }
@@ -992,15 +734,8 @@ public class GridManager : MonoBehaviour
 
         float accuracy = totalSteps > 0 ? ((float)successfulSteps / totalSteps) * 100f : 0f;
 
-        if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.PlayGameOverSound();
-        }
-
-        if (HUDManager.Instance != null)
-        {
-            HUDManager.Instance.ShowGameOver(score, accuracy, maxCombo);
-        }
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayGameOverSound();
+        if (HUDManager.Instance != null) HUDManager.Instance.ShowGameOver(score, accuracy, maxCombo);
 
         StartCoroutine(StartReplayWithDelayRoutine(1.8f));
     }
