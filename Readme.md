@@ -39,11 +39,11 @@
 
 - **How to Run:** Instructions to launch the game.
 - **Controls:** List all player controls.  
-  Standard W, A, S, D keys.  
-  W: Move Up  
-  A: Move Left  
-  S: Move Down  
-  D: Move Right
+  Standard W, A, S, D keys and Arrow keys.  
+  W / Up Arrow: Move Up  
+  A / Left Arrow: Move Left  
+  S / Down Arrow: Move Down  
+  D / Right Arrow: Move Right
 - **Known Bugs / Limitations:** List all known issues, including steps to reproduce significant bugs. State "None" if there are no known issues.
 
 ## 5. Game Design & Balance (10%)

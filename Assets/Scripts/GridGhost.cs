@@ -16,9 +16,16 @@ public class GridGhost : MonoBehaviour
     {
         while (true)
         {
-            // Dynamically use ghostMoveInterval from GridManager, or fallback to moveInterval
-            float currentInterval = (GridManager.Instance != null) ? GridManager.Instance.ghostMoveInterval : moveInterval;
-            yield return new WaitForSeconds(currentInterval);
+            // Dynamically get move speed from GridManager
+            float baseInterval = (GridManager.Instance != null) ? GridManager.Instance.ghostMoveInterval : moveInterval;
+
+            // CONSEQUENCE: Ghost moves 2x faster (half interval duration) during Toxic Overdrive!
+            if (GridManager.Instance != null && GridManager.Instance.isToxicActive)
+            {
+                baseInterval *= 0.5f;
+            }
+
+            yield return new WaitForSeconds(baseInterval);
 
             // Skip movement while in Recall Mode or during Game Over
             if (GameManager.SelectedMode == GameMode.RecallMode) continue;
@@ -27,7 +34,6 @@ public class GridGhost : MonoBehaviour
             {
                 MoveRandomly(GridManager.Instance.cols, GridManager.Instance.rows);
 
-                // Check if ghost patrolled directly onto the player's current tile!
                 PlayerController player = FindFirstObjectByType<PlayerController>();
                 if (player != null && CheckPlayerCollision(new Vector2Int(player.gridX, player.gridY)))
                 {

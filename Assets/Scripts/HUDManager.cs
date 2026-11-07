@@ -67,6 +67,10 @@ public class HUDManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI phaseText;
     private Coroutine activeBannerCoroutine;
 
+    [Header("Toxic Overdrive UI")]
+    [SerializeField] private TextMeshProUGUI toxicOverdriveText;
+    private Coroutine activeToxicBannerCoroutine;
+
     [Header("UI Frame References")]
     public GameObject gridBorderFrame;
 
@@ -165,11 +169,11 @@ public class HUDManager : MonoBehaviour
 
     private IEnumerator AnimateStatsRevealRoutine(
         RectTransform activePacmanIcon,
-        TextMeshProUGUI scoreTxt, 
-        TextMeshProUGUI accuracyTxt, 
-        TextMeshProUGUI comboTxt, 
-        int finalScore, 
-        float accuracy, 
+        TextMeshProUGUI scoreTxt,
+        TextMeshProUGUI accuracyTxt,
+        TextMeshProUGUI comboTxt,
+        int finalScore,
+        float accuracy,
         int maxCombo)
     {
         // Hide only value texts initially
@@ -322,6 +326,28 @@ public class HUDManager : MonoBehaviour
 
         phaseText.gameObject.SetActive(false);
         activeBannerCoroutine = null;
+    }
+
+    public void ShowToxicOverdriveText(float duration = 1.5f)
+    {
+        if (toxicOverdriveText == null) return;
+
+        if (activeToxicBannerCoroutine != null)
+        {
+            StopCoroutine(activeToxicBannerCoroutine);
+        }
+
+        activeToxicBannerCoroutine = StartCoroutine(ShowToxicTextRoutine(duration));
+    }
+
+    private IEnumerator ShowToxicTextRoutine(float duration)
+    {
+        toxicOverdriveText.gameObject.SetActive(true);
+
+        yield return new WaitForSeconds(duration);
+
+        toxicOverdriveText.gameObject.SetActive(false);
+        activeToxicBannerCoroutine = null;
     }
 
     public void RestartGame()

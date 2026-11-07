@@ -50,6 +50,15 @@ public class GridManager : MonoBehaviour
     private GridGhost activeGhost;
     public float ghostMoveInterval = 1.0f;
 
+    [Header("Toxic Overdrive Settings")]
+    public GameObject toxicMelonPrefab;
+    public float toxicDuration = 4.0f;
+    public bool isToxicActive = false;
+    private Coroutine toxicCoroutine;
+
+    [Header("Floating Feedback Prefab")]
+    public GameObject floatingTextPrefab;
+
     void Awake()
     {
         Instance = this;
@@ -374,7 +383,43 @@ public class GridManager : MonoBehaviour
                 // Standard mode lava collision
                 HandleStepError(player);
             }
+            else if (steppedTile.currentState == TileState.Toxic)
+            {
+                totalSteps++;
+                steppedTile.ClearItem();
+
+                score += 300;
+                combo += 2;
+                if (combo > maxCombo) maxCombo = combo;
+
+                if (HUDManager.Instance != null)
+                {
+                    HUDManager.Instance.UpdateScore(score);
+                    HUDManager.Instance.UpdateCombo(combo);
+                }
+
+                if (floatingTextPrefab != null && player != null)
+                {
+                    Vector3 spawnPos = player.transform.position + new Vector3(0f, 0.5f, -1f);
+                    Instantiate(floatingTextPrefab, spawnPos, Quaternion.identity);
+                }
+
+                steppedTile.SetState(TileState.Neutral);
+                TriggerToxicOverdrive();
+
+                // Pass exact movement directions so Pac-Man reliably leaps forward
+                if (player != null)
+                {
+                    player.PerformToxicLeap(player.lastDirX, player.lastDirY);
+                }
+
+                if (activeGhost != null && activeGhost.CheckPlayerCollision(new Vector2Int(player.gridX, player.gridY)))
+                {
+                    HandleGhostCollision();
+                }
+            }
         }
+
     }
 
     private void HandleStepError(PlayerController player)
@@ -505,6 +550,8 @@ public class GridManager : MonoBehaviour
 
     public void SpawnNextTargetNote(int playerX, int playerY)
     {
+        ClearAllToxicMelons();
+
         int targetX, targetY;
         int maxAttempts = 100;
         int attempts = 0;
@@ -561,6 +608,33 @@ public class GridManager : MonoBehaviour
             if (HasValidPath(playerX, playerY, targetX, targetY))
             {
                 validLayoutFound = true;
+
+                if (Random.value < 0.30f)
+                {
+                    List<Vector2Int> availableTiles = new List<Vector2Int>();
+
+                    for (int x = 0; x < cols; x++)
+                    {
+                        for (int y = 0; y < rows; y++)
+                        {
+                            bool isPlayer = (x == playerX && y == playerY);
+                            bool isGhost = (activeGhost != null && activeGhost.gridPosition.x == x && activeGhost.gridPosition.y == y);
+
+                            // Only place on empty Neutral tiles (not target, not lava, not player, not ghost)
+                            if (grid[x, y].currentState == TileState.Neutral && !isPlayer && !isGhost)
+                            {
+                                availableTiles.Add(new Vector2Int(x, y));
+                            }
+                        }
+                    }
+
+                    if (availableTiles.Count > 0)
+                    {
+                        Vector2Int toxicPos = availableTiles[Random.Range(0, availableTiles.Count)];
+                        grid[toxicPos.x, toxicPos.y].SetState(TileState.Toxic);
+                        grid[toxicPos.x, toxicPos.y].SpawnToxicItem(toxicMelonPrefab);
+                    }
+                }
             }
         }
     }
@@ -804,6 +878,26 @@ public class GridManager : MonoBehaviour
         grid[targetPos.x, targetPos.y].SetVisualHidden();
     }
 
+    public void TriggerToxicOverdrive()
+    {
+        if (toxicCoroutine != null) StopCoroutine(toxicCoroutine);
+        toxicCoroutine = StartCoroutine(ToxicOverdriveRoutine());
+    }
+
+    private IEnumerator ToxicOverdriveRoutine()
+    {
+        isToxicActive = true;
+
+        if (HUDManager.Instance != null)
+        {
+            HUDManager.Instance.ShowToxicOverdriveText(1.5f);
+        }
+
+        yield return new WaitForSeconds(toxicDuration);
+
+        isToxicActive = false;
+    }
+
     void CompleteLevel()
     {
         isGameOver = true;
@@ -835,6 +929,24 @@ public class GridManager : MonoBehaviour
         }
 
         StartCoroutine(StartReplayWithDelayRoutine(1.8f));
+    }
+
+    public void ClearAllToxicMelons()
+    {
+        for (int x = 0; x < cols; x++)
+        {
+            for (int y = 0; y < rows; y++)
+            {
+                if (grid[x, y] != null)
+                {
+                    grid[x, y].ClearItem();
+                    if (grid[x, y].currentState == TileState.Toxic)
+                    {
+                        grid[x, y].currentState = TileState.Neutral;
+                    }
+                }
+            }
+        }
     }
 
     private IEnumerator StartReplayWithDelayRoutine(float delaySeconds)

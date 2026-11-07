@@ -22,6 +22,9 @@ public class PlayerController : MonoBehaviour
     private Collider2D col;
     private Animator anim;
 
+    public int lastDirX = 0;
+    public int lastDirY = 0;
+
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -74,24 +77,28 @@ public class PlayerController : MonoBehaviour
         if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
         {
             targetY++;
+            lastDirX = 0; lastDirY = 1;
             inputReceived = true;
             if (anim != null) anim.SetInteger("MoveDirection", 1);
         }
         else if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
         {
             targetY--;
+            lastDirX = 0; lastDirY = -1;
             inputReceived = true;
             if (anim != null) anim.SetInteger("MoveDirection", 3);
         }
         else if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
         {
             targetX--;
+            lastDirX = -1; lastDirY = 0;
             inputReceived = true;
             if (anim != null) anim.SetInteger("MoveDirection", 2);
         }
         else if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
         {
             targetX++;
+            lastDirX = 1; lastDirY = 0;
             inputReceived = true;
             if (anim != null) anim.SetInteger("MoveDirection", 0);
         }
@@ -106,7 +113,18 @@ public class PlayerController : MonoBehaviour
                 {
                     UpdateGridPosition(targetX, targetY);
                     SnapToGridPosition(gridX, gridY);
-                    moveTimer = moveCooldown; // Apply delay between steps
+
+                    // =========================================================================
+                    // TOXIC OVERDRIVE SPEED BOOST (2x Movement Speed!)
+                    // =========================================================================
+                    float effectiveCooldown = moveCooldown;
+                    if (GridManager.Instance.isToxicActive)
+                    {
+                        effectiveCooldown *= 0.5f; // Cuts move timer in half so Pac-Man steps twice as fast!
+                    }
+
+                    moveTimer = effectiveCooldown;
+                    // =========================================================================
 
                     // IMMEDIATELY check if Pac-Man walked onto the ghost's tile!
                     GridManager.Instance.CheckPlayerGhostCollision(new Vector2Int(gridX, gridY));
@@ -174,5 +192,21 @@ public class PlayerController : MonoBehaviour
     private void EnableCollider()
     {
         if (col != null) col.enabled = true;
+    }
+
+    public void PerformToxicLeap(int dirX, int dirY)
+    {
+        // Calculate the bonus extra step forward in the player's active input direction
+        int leapX = gridX + dirX;
+        int leapY = gridY + dirY;
+
+        // Boundary check to ensure the leap target stays within grid bounds
+        if (GridManager.Instance != null &&
+            leapX >= 0 && leapX < GridManager.Instance.cols &&
+            leapY >= 0 && leapY < GridManager.Instance.rows)
+        {
+            UpdateGridPosition(leapX, leapY);
+            SnapToGridPosition(gridX, gridY);
+        }
     }
 }
