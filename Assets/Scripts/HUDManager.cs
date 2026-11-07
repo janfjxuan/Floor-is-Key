@@ -134,12 +134,6 @@ public class HUDManager : MonoBehaviour
 
     public void ShowGameOver(int finalScore, float accuracy, int maxCombo)
     {
-        // 1. Hide the cyan grid outline frame
-        if (gridBorderFrame != null)
-        {
-            gridBorderFrame.SetActive(false);
-        }
-
         gameOverPanel.SetActive(true);
 
         if (finalScoreText != null)
@@ -156,12 +150,6 @@ public class HUDManager : MonoBehaviour
 
     public void ShowLevelComplete(int finalScore, float accuracy, int maxCombo)
     {
-        // 1. Hide the cyan grid outline frame
-        if (gridBorderFrame != null)
-        {
-            gridBorderFrame.SetActive(false);
-        }
-
         if (levelCompletePanel != null)
         {
             levelCompletePanel.SetActive(true);
@@ -187,13 +175,11 @@ public class HUDManager : MonoBehaviour
         if (replayStatusText != null)
         {
             replayStatusText.transform.SetParent(targetPanel, false);
-            replayStatusText.rectTransform.anchoredPosition = new Vector2(0f, 145f);
         }
 
         if (playAgainButton != null)
         {
             playAgainButton.transform.SetParent(targetPanel, false);
-            playAgainButton.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -240f);
             playAgainButton.SetActive(false);
         }
     }

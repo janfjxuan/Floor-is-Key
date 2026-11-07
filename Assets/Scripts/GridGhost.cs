@@ -5,7 +5,7 @@ using System.Collections;
 public class GridGhost : MonoBehaviour
 {
     public Vector2Int gridPosition;
-    public float moveInterval = 1.5f; // Time in seconds between ghost movements
+    public float moveInterval = 1.5f; // Fallback interval if GridManager isn't assigned
 
     void Start()
     {
@@ -16,7 +16,12 @@ public class GridGhost : MonoBehaviour
     {
         while (true)
         {
-            yield return new WaitForSeconds(moveInterval);
+            // Dynamically use ghostMoveInterval from GridManager, or fallback to moveInterval
+            float currentInterval = (GridManager.Instance != null) ? GridManager.Instance.ghostMoveInterval : moveInterval;
+            yield return new WaitForSeconds(currentInterval);
+
+            // Skip movement while in Recall Mode or during Game Over
+            if (GameManager.SelectedMode == GameMode.RecallMode) continue;
 
             if (GridManager.Instance != null && !GridManager.Instance.isGameOver)
             {
@@ -34,20 +39,47 @@ public class GridGhost : MonoBehaviour
 
     public void MoveRandomly(int gridWidth, int gridHeight, List<Vector2Int> obstacles = null)
     {
-        List<Vector2Int> possibleMoves = new List<Vector2Int>
+        Vector2Int[] directions = new Vector2Int[]
         {
-            gridPosition + Vector2Int.up,
-            gridPosition + Vector2Int.down,
-            gridPosition + Vector2Int.left,
-            gridPosition + Vector2Int.right
+            Vector2Int.up,
+            Vector2Int.down,
+            Vector2Int.left,
+            Vector2Int.right
         };
 
-        // Filter out-of-bounds moves
-        possibleMoves.RemoveAll(pos => pos.x < 0 || pos.x >= gridWidth || pos.y < 0 || pos.y >= gridHeight);
+        List<Vector2Int> validMoves = new List<Vector2Int>();
 
-        if (possibleMoves.Count > 0)
+        foreach (Vector2Int dir in directions)
         {
-            gridPosition = possibleMoves[Random.Range(0, possibleMoves.Count)];
+            Vector2Int candidatePos = gridPosition + dir;
+
+            // Check grid boundaries
+            if (candidatePos.x >= 0 && candidatePos.x < gridWidth && candidatePos.y >= 0 && candidatePos.y < gridHeight)
+            {
+                // Must be a DIFFERENT tile from current position
+                if (candidatePos == gridPosition) continue;
+
+                // Check custom obstacles list if provided
+                if (obstacles != null && obstacles.Contains(candidatePos)) continue;
+
+                // Prevent ghost from stepping onto safe (cyan) target tiles
+                if (GridManager.Instance != null && GridManager.Instance.GetTileWorldPosition(candidatePos.x, candidatePos.y) != Vector3.zero)
+                {
+                    TileController tile = GridManager.Instance.GetTileAt(candidatePos.x, candidatePos.y);
+                    if (tile != null && tile.currentState == TileState.Safe)
+                    {
+                        continue;
+                    }
+                }
+
+                validMoves.Add(candidatePos);
+            }
+        }
+
+        // Move to a new adjacent tile
+        if (validMoves.Count > 0)
+        {
+            gridPosition = validMoves[Random.Range(0, validMoves.Count)];
             UpdateWorldPosition();
         }
     }

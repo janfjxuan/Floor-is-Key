@@ -33,7 +33,7 @@ public class GridManager : MonoBehaviour
     private int[] targetSequence;
     private int currentSequenceStep = 0;
 
-    [Header("Hammer Time Settings")]
+    [Header("Recall Mode Settings")]
     public float previewDuration = 3.0f;
     public float baseSecondsPerNote = 0.45f;
     public bool isRecallModeActive = false;
@@ -43,12 +43,12 @@ public class GridManager : MonoBehaviour
     [Header("Dynamic Escalation Settings")]
     public int[] chunkLengths = new int[] { 4, 6, 8 };
     private int currentChunkIndex = 0;
-    private int totalChunks = 0;
     private int[] currentChunkNotes;
 
     [Header("Ghost Settings")]
     public GridGhost ghostPrefab;
     private GridGhost activeGhost;
+    public float ghostMoveInterval = 1.0f;
 
     void Awake()
     {
@@ -63,7 +63,6 @@ public class GridManager : MonoBehaviour
         }
 
         GenerateGrid();
-        SpawnGhost();
 
         score = 0;
         combo = 0;
@@ -110,6 +109,7 @@ public class GridManager : MonoBehaviour
         {
             isRecallModeActive = false;
             SpawnNextTargetNote(startX, startY);
+            SpawnGhost(); // Spawn ghost AFTER target note is initialized in Standard Mode
         }
 
         if (HUDManager.Instance != null)
@@ -124,25 +124,67 @@ public class GridManager : MonoBehaviour
 
     void SpawnGhost()
     {
-        if (ghostPrefab != null)
+        if (ghostPrefab == null) return;
+
+        List<Vector2Int> validTiles = new List<Vector2Int>();
+        PlayerController player = FindFirstObjectByType<PlayerController>();
+        Vector2Int playerPos = player != null ? new Vector2Int(player.gridX, player.gridY) : new Vector2Int(-1, -1);
+
+        for (int x = 0; x < cols; x++)
+        {
+            for (int y = 0; y < rows; y++)
+            {
+                // Must not be the target (Safe) tile AND must not be the player tile
+                if (grid[x, y] != null &&
+                    grid[x, y].currentState != TileState.Safe &&
+                    (x != playerPos.x || y != playerPos.y))
+                {
+                    validTiles.Add(new Vector2Int(x, y));
+                }
+            }
+        }
+
+        Vector2Int chosenPos = new Vector2Int(cols - 1, rows - 1);
+        if (validTiles.Count > 0)
+        {
+            chosenPos = validTiles[Random.Range(0, validTiles.Count)];
+        }
+
+        if (activeGhost == null)
         {
             activeGhost = Instantiate(ghostPrefab);
-            // Spawn ghost at top-right corner or random spot away from player center
-            activeGhost.gridPosition = new Vector2Int(cols - 1, rows - 1);
-            activeGhost.UpdateWorldPosition();
         }
+
+        activeGhost.gridPosition = chosenPos;
+        activeGhost.UpdateWorldPosition();
+    }
+
+    public TileController GetTileAt(int x, int y)
+    {
+        if (grid != null && x >= 0 && x < cols && y >= 0 && y < rows)
+        {
+            return grid[x, y];
+        }
+        return null;
     }
 
     private int GetNextRiffIndex()
     {
+        if (availableRiffs == null || availableRiffs.Length == 0) return 0;
+
         if (riffPool.Count == 0 || riffPool.Count > availableRiffs.Length)
         {
             riffPool.Clear();
             for (int i = 0; i < availableRiffs.Length; i++)
             {
-                riffPool.Add(i);
+                if (availableRiffs[i] != null && availableRiffs[i].noteSequence != null)
+                {
+                    riffPool.Add(i);
+                }
             }
         }
+
+        if (riffPool.Count == 0) return 0;
 
         int randomIndex = Random.Range(0, riffPool.Count);
         int chosenIndex = riffPool[randomIndex];
@@ -169,7 +211,6 @@ public class GridManager : MonoBehaviour
 
     public void SetGridAndPlayerVisible(bool visible)
     {
-        // Toggle all grid tiles
         if (grid != null)
         {
             for (int x = 0; x < cols; x++)
@@ -184,14 +225,12 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        // Toggle player sprite
         PlayerController player = FindFirstObjectByType<PlayerController>();
         if (player != null)
         {
             player.gameObject.SetActive(visible);
         }
 
-        // Toggle ghost sprite
         if (activeGhost != null)
         {
             activeGhost.gameObject.SetActive(visible);
@@ -214,63 +253,48 @@ public class GridManager : MonoBehaviour
     {
         if (isGameOver || steppedTile == null || isRecallModeActive) return;
 
-        totalSteps++;
         PlayerController player = FindFirstObjectByType<PlayerController>();
 
-        if (steppedTile.currentState == TileState.Safe)
+        // =========================================================================
+        // RECALL MODE LOGIC (Strict sequence memory, hidden tiles)
+        // =========================================================================
+        if (GameManager.SelectedMode == GameMode.RecallMode)
         {
-            if (player != null)
+            // Ignore start tile triggers right after phase spawn
+            if (recallModePath.Count > 0 && steppedTile.gridX == recallModePath[0].x && steppedTile.gridY == recallModePath[0].y && currentSequenceStep == 0)
             {
-                player.UpdateGridPosition(steppedTile.gridX, steppedTile.gridY);
+                return;
             }
 
-            // Move the ghost every time the player takes a successful step
-            if (activeGhost != null)
+            if (steppedTile.currentState == TileState.Safe)
             {
-                activeGhost.MoveRandomly(cols, rows);
+                totalSteps++;
+                successfulSteps++;
+                combo++;
+                if (combo > maxCombo) maxCombo = combo;
 
-                if (activeGhost.CheckPlayerCollision(new Vector2Int(steppedTile.gridX, steppedTile.gridY)))
+                if (player != null) player.UpdateGridPosition(steppedTile.gridX, steppedTile.gridY);
+
+                score += 100 + (20 * combo);
+
+                if (HUDManager.Instance != null)
                 {
-                    HandleGhostCollision();
-                    if (isGameOver) return;
+                    HUDManager.Instance.UpdateScore(score);
+                    HUDManager.Instance.UpdateCombo(combo);
                 }
-            }
 
-            successfulSteps++;
-            combo++;
+                if (AudioManager.Instance != null) AudioManager.Instance.PlayNote(steppedTile.noteIndex);
+                if (ReplayManager.Instance != null) ReplayManager.Instance.RecordStep(steppedTile.noteIndex, false, 60f - timeRemaining);
 
-            if (combo > maxCombo) maxCombo = combo;
+                currentSequenceStep++;
 
-            int addedScore = 100 + (20 * combo);
-            score += addedScore;
-
-            if (HUDManager.Instance != null)
-            {
-                HUDManager.Instance.UpdateScore(score);
-                HUDManager.Instance.UpdateCombo(combo);
-            }
-
-            if (AudioManager.Instance != null)
-            {
-                AudioManager.Instance.PlayNote(steppedTile.noteIndex);
-            }
-
-            if (ReplayManager.Instance != null)
-            {
-                ReplayManager.Instance.RecordStep(steppedTile.noteIndex, false, 60f - timeRemaining);
-            }
-
-            currentSequenceStep++;
-
-            if (GameManager.SelectedMode == GameMode.RecallMode)
-            {
                 int activeChunkLength = currentChunkNotes != null ? currentChunkNotes.Length : 4;
 
                 if (currentSequenceStep >= activeChunkLength)
                 {
                     currentChunkIndex++;
 
-                    if (currentChunkIndex >= totalChunks || GetCurrentChunkStartIndex() >= targetSequence.Length)
+                    if (GetCurrentChunkStartIndex() >= targetSequence.Length)
                     {
                         CompleteLevel();
                         return;
@@ -281,92 +305,123 @@ public class GridManager : MonoBehaviour
                         return;
                     }
                 }
+
+                if (HUDManager.Instance != null) HUDManager.Instance.UpdateRiffQueue(currentChunkNotes, currentSequenceStep);
+                SpawnNextRecallModeTarget();
             }
             else
             {
+                // Wrong step in Recall Mode (stepping on Neutral or Lava)
+                HandleStepError(player);
+            }
+        }
+        // =========================================================================
+        // STANDARD MODE LOGIC (Visible Grid, Neutral Pathing, Lava Hazards & Ghosts)
+        // =========================================================================
+        else
+        {
+            if (steppedTile.currentState == TileState.Safe)
+            {
+                // Target hit!
+                totalSteps++;
+                successfulSteps++;
+                combo++;
+                if (combo > maxCombo) maxCombo = combo;
+
+                if (player != null) player.UpdateGridPosition(steppedTile.gridX, steppedTile.gridY);
+
+                score += 100 + (20 * combo);
+
+                if (HUDManager.Instance != null)
+                {
+                    HUDManager.Instance.UpdateScore(score);
+                    HUDManager.Instance.UpdateCombo(combo);
+                }
+
+                if (AudioManager.Instance != null) AudioManager.Instance.PlayNote(steppedTile.noteIndex);
+                if (ReplayManager.Instance != null) ReplayManager.Instance.RecordStep(steppedTile.noteIndex, false, 60f - timeRemaining);
+
+                if (activeGhost != null && activeGhost.CheckPlayerCollision(new Vector2Int(steppedTile.gridX, steppedTile.gridY)))
+                {
+                    HandleGhostCollision();
+                    if (isGameOver) return;
+                }
+
+                currentSequenceStep++;
+
                 if (currentSequenceStep >= targetSequence.Length)
                 {
                     CompleteLevel();
                     return;
                 }
-            }
 
-            if (HUDManager.Instance != null)
-            {
-                if (GameManager.SelectedMode == GameMode.RecallMode)
-                {
-                    HUDManager.Instance.UpdateRiffQueue(currentChunkNotes, currentSequenceStep);
-                }
-                else
-                {
-                    HUDManager.Instance.UpdateRiffQueue(targetSequence, currentSequenceStep);
-                }
-            }
-
-            if (GameManager.SelectedMode == GameMode.RecallMode)
-            {
-                SpawnNextRecallModeTarget();
-            }
-            else
-            {
+                if (HUDManager.Instance != null) HUDManager.Instance.UpdateRiffQueue(targetSequence, currentSequenceStep);
                 SpawnNextTargetNote(steppedTile.gridX, steppedTile.gridY);
             }
+            else if (steppedTile.currentState == TileState.Neutral)
+            {
+                // Safe path traversal towards target note
+                totalSteps++;
+                if (player != null) player.UpdateGridPosition(steppedTile.gridX, steppedTile.gridY);
+
+                if (activeGhost != null && activeGhost.CheckPlayerCollision(new Vector2Int(steppedTile.gridX, steppedTile.gridY)))
+                {
+                    HandleGhostCollision();
+                }
+            }
+            else if (steppedTile.currentState == TileState.Lava)
+            {
+                // Standard mode lava collision
+                HandleStepError(player);
+            }
         }
-        else if (steppedTile.currentState == TileState.Lava)
+    }
+
+    private void HandleStepError(PlayerController player)
+    {
+        totalSteps++;
+        combo = 0;
+        lives--;
+
+        if (HUDManager.Instance != null)
         {
-            combo = 0;
-            lives--;
+            HUDManager.Instance.UpdateLives(lives);
+            HUDManager.Instance.UpdateCombo(combo);
+        }
 
-            if (HUDManager.Instance != null)
+        if (CameraShake.Instance != null) CameraShake.Instance.Shake(0.2f, 0.25f);
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayWrongStep();
+        if (ReplayManager.Instance != null) ReplayManager.Instance.RecordStep(-1, true, 60f - timeRemaining);
+
+        if (lives <= 0)
+        {
+            EndGame();
+            return;
+        }
+
+        if (GameManager.SelectedMode == GameMode.RecallMode)
+        {
+            isRecallModeActive = true;
+            currentSequenceStep = 0;
+
+            if (player != null) player.SnapToChunkStartTile();
+            SpawnNextRecallModeTarget();
+
+            if (HUDManager.Instance != null && currentChunkNotes != null)
             {
-                HUDManager.Instance.UpdateLives(lives);
-                HUDManager.Instance.UpdateCombo(combo);
+                HUDManager.Instance.UpdateRiffQueue(currentChunkNotes, 0);
             }
 
-            if (CameraShake.Instance != null) CameraShake.Instance.Shake(0.2f, 0.25f);
-
-            if (AudioManager.Instance != null)
-            {
-                AudioManager.Instance.PlayWrongStep();
-            }
-
-            if (ReplayManager.Instance != null)
-            {
-                ReplayManager.Instance.RecordStep(-1, true, 60f - timeRemaining);
-            }
-
-            if (lives <= 0)
-            {
-                EndGame();
-                return;
-            }
-
-            // Clean snap back to chunk start on error
-            if (GameManager.SelectedMode == GameMode.RecallMode)
-            {
-                isRecallModeActive = true;
-                currentSequenceStep = 0;
-
-                if (player != null)
-                {
-                    player.SnapToChunkStartTile();
-                }
-
-                SpawnNextRecallModeTarget();
-
-                if (HUDManager.Instance != null && currentChunkNotes != null)
-                {
-                    HUDManager.Instance.UpdateRiffQueue(currentChunkNotes, 0);
-                }
-
-                StartCoroutine(UnlockPreviewAfterDelay(0.15f));
-            }
+            StartCoroutine(UnlockPreviewAfterDelay(0.3f));
         }
     }
 
     public void CheckPlayerGhostCollision(Vector2Int playerPos)
     {
-        if (activeGhost != null && activeGhost.CheckPlayerCollision(playerPos))
+        // Ignore ghost collision checks completely in Recall Mode
+        if (GameManager.SelectedMode == GameMode.RecallMode) return;
+
+        if (activeGhost != null && activeGhost.gameObject.activeSelf && activeGhost.CheckPlayerCollision(playerPos))
         {
             HandleGhostCollision();
         }
@@ -395,7 +450,6 @@ public class GridManager : MonoBehaviour
             EndGame();
         }
     }
-
 
     private IEnumerator UnlockPreviewAfterDelay(float delay)
     {
@@ -452,11 +506,21 @@ public class GridManager : MonoBehaviour
     public void SpawnNextTargetNote(int playerX, int playerY)
     {
         int targetX, targetY;
+        int maxAttempts = 100;
+        int attempts = 0;
+
         do
         {
             targetX = Random.Range(0, cols);
             targetY = Random.Range(0, rows);
-        } while (targetX == playerX && targetY == playerY);
+            attempts++;
+
+            bool isGhostPos = (activeGhost != null && activeGhost.gridPosition.x == targetX && activeGhost.gridPosition.y == targetY);
+            bool isPlayerPos = (targetX == playerX && targetY == playerY);
+
+            if (!isGhostPos && !isPlayerPos) break;
+
+        } while (attempts < maxAttempts);
 
         int noteToPlay = targetSequence[currentSequenceStep];
 
@@ -567,10 +631,13 @@ public class GridManager : MonoBehaviour
 
         int startIndex = GetCurrentChunkStartIndex();
 
-        int targetChunkLength = (currentChunkIndex < chunkLengths.Length) ? chunkLengths[currentChunkIndex] : chunkLengths[chunkLengths.Length - 1];
-        int chunkLength = Mathf.Min(targetChunkLength, targetSequence.Length - startIndex);
+        // Dynamically get target length: use chunkLengths array, or stick to the max chunk size for remaining notes
+        int targetChunkLength = (currentChunkIndex < chunkLengths.Length)
+            ? chunkLengths[currentChunkIndex]
+            : chunkLengths[chunkLengths.Length - 1];
 
-        totalChunks = chunkLengths.Length;
+        // Ensure we don't overshoot the total sequence length
+        int chunkLength = Mathf.Min(targetChunkLength, targetSequence.Length - startIndex);
 
         currentChunkNotes = new int[chunkLength];
         System.Array.Copy(targetSequence, startIndex, currentChunkNotes, 0, chunkLength);
@@ -616,7 +683,7 @@ public class GridManager : MonoBehaviour
 
         if (HUDManager.Instance != null)
         {
-            HUDManager.Instance.ShowPhaseText("STOP! HAMMER TIME!", 1.5f);
+            HUDManager.Instance.ShowPhaseText("PLAY IT BACK!", 1.5f);
         }
 
         yield return new WaitForSeconds(0.3f);
@@ -630,7 +697,6 @@ public class GridManager : MonoBehaviour
             player.gameObject.SetActive(true);
         }
 
-        // Keep ghost disabled during Recall Mode active phase!
         if (activeGhost != null)
         {
             activeGhost.gameObject.SetActive(false);
@@ -638,6 +704,7 @@ public class GridManager : MonoBehaviour
 
         SpawnNextRecallModeTarget();
 
+        yield return new WaitForSeconds(0.1f);
         isRecallModeActive = false;
     }
 
@@ -645,8 +712,19 @@ public class GridManager : MonoBehaviour
     {
         recallModePath.Clear();
 
-        Vector2Int currentPos = new Vector2Int(startX, startY);
-        recallModePath.Add(currentPos);
+        Vector2Int startPos = new Vector2Int(startX, startY);
+        recallModePath.Add(startPos);
+
+        if (!BuildSelfAvoidingPath(startPos, sequenceLimit))
+        {
+            // Fallback: If strict non-overlapping path fails on a tight grid, reset and try random valid steps
+            Debug.LogWarning("Could not find completely non-overlapping path of length " + sequenceLimit);
+        }
+    }
+
+    private bool BuildSelfAvoidingPath(Vector2Int currentPos, int stepsRemaining)
+    {
+        if (stepsRemaining <= 0) return true;
 
         Vector2Int[] directions = new Vector2Int[]
         {
@@ -656,43 +734,37 @@ public class GridManager : MonoBehaviour
             new Vector2Int(1, 0)
         };
 
-        for (int i = 0; i < sequenceLimit; i++)
+        // Shuffle directions for randomized paths each run
+        for (int i = 0; i < directions.Length; i++)
         {
-            List<Vector2Int> validNeighbors = new List<Vector2Int>();
-
-            foreach (Vector2Int dir in directions)
-            {
-                int nextX = currentPos.x + dir.x;
-                int nextY = currentPos.y + dir.y;
-
-                if (nextX >= 0 && nextX < cols && nextY >= 0 && nextY < rows)
-                {
-                    Vector2Int nextPos = new Vector2Int(nextX, nextY);
-                    if (!recallModePath.Contains(nextPos))
-                    {
-                        validNeighbors.Add(nextPos);
-                    }
-                }
-            }
-
-            if (validNeighbors.Count == 0)
-            {
-                foreach (Vector2Int dir in directions)
-                {
-                    int nextX = currentPos.x + dir.x;
-                    int nextY = currentPos.y + dir.y;
-                    if (nextX >= 0 && nextX < cols && nextY >= 0 && nextY < rows)
-                    {
-                        validNeighbors.Add(new Vector2Int(nextX, nextY));
-                    }
-                }
-            }
-
-            Vector2Int chosenStep = validNeighbors[Random.Range(0, validNeighbors.Count)];
-            recallModePath.Add(chosenStep);
-
-            currentPos = chosenStep;
+            Vector2Int temp = directions[i];
+            int randomIndex = Random.Range(i, directions.Length);
+            directions[i] = directions[randomIndex];
+            directions[randomIndex] = temp;
         }
+
+        foreach (Vector2Int dir in directions)
+        {
+            int nextX = currentPos.x + dir.x;
+            int nextY = currentPos.y + dir.y;
+            Vector2Int nextPos = new Vector2Int(nextX, nextY);
+
+            // Ensure step stays inside grid bounds AND has not been visited yet in this sequence
+            if (nextX >= 0 && nextX < cols && nextY >= 0 && nextY < rows && !recallModePath.Contains(nextPos))
+            {
+                recallModePath.Add(nextPos);
+
+                if (BuildSelfAvoidingPath(nextPos, stepsRemaining - 1))
+                {
+                    return true;
+                }
+
+                // Backtrack if this path gets trapped early
+                recallModePath.RemoveAt(recallModePath.Count - 1);
+            }
+        }
+
+        return false;
     }
 
     void SpawnNextRecallModeTarget()
@@ -702,20 +774,25 @@ public class GridManager : MonoBehaviour
         Vector2Int targetPos = recallModePath[currentSequenceStep + 1];
         int noteToPlay = currentChunkNotes[currentSequenceStep];
 
+        PlayerController player = FindFirstObjectByType<PlayerController>();
+        Vector2Int playerPos = player != null ? new Vector2Int(player.gridX, player.gridY) : new Vector2Int(-1, -1);
+        Vector2Int startPos = recallModePath.Count > 0 ? recallModePath[0] : new Vector2Int(-1, -1);
+
         for (int x = 0; x < cols; x++)
         {
             for (int y = 0; y < rows; y++)
             {
-                grid[x, y].SetState(TileState.Lava);
+                // Set target tile safe, set player start tile to Neutral, rest to Lava
+                if ((x == playerPos.x && y == playerPos.y) || (x == startPos.x && y == startPos.y))
+                {
+                    grid[x, y].SetState(TileState.Neutral);
+                }
+                else
+                {
+                    grid[x, y].SetState(TileState.Lava);
+                }
                 grid[x, y].SetVisualHidden();
             }
-        }
-
-        if (recallModePath.Count > 0)
-        {
-            Vector2Int startPos = recallModePath[0];
-            grid[startPos.x, startPos.y].SetState(TileState.Neutral);
-            grid[startPos.x, startPos.y].SetVisualHidden();
         }
 
         grid[targetPos.x, targetPos.y].SetState(TileState.Safe, noteToPlay);
