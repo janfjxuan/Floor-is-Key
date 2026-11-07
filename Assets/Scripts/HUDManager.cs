@@ -45,6 +45,17 @@ public class HUDManager : MonoBehaviour
     public TextMeshProUGUI levelCompleteAccuracyText;
     public TextMeshProUGUI levelCompleteMaxComboText;
 
+    [Header("Pac-Man Chomp Animation Settings")]
+    public RectTransform levelCompletePacmanIcon;
+    public RectTransform gameOverPacmanIcon;
+    public float stepChompDelay = 0.35f; // Delay per revealed line
+    public float chompMoveDistance = 200f; // Horizontal shift distance across line
+
+    [Header("Label RectTransforms for Chomp Pathing")]
+    public RectTransform finalScoreLabel;
+    public RectTransform accuracyLabel;
+    public RectTransform maxComboLabel;
+
     [Header("Heart UI References")]
     public GameObject[] heartImages;
 
@@ -134,18 +145,12 @@ public class HUDManager : MonoBehaviour
 
     public void ShowGameOver(int finalScore, float accuracy, int maxCombo)
     {
-        gameOverPanel.SetActive(true);
-
-        if (finalScoreText != null)
-            finalScoreText.text = $"{finalScore}";
-
-        if (accuracyText != null)
-            accuracyText.text = $"{accuracy:F1}%";
-
-        if (maxComboText != null)
-            maxComboText.text = $"{maxCombo}x";
-
-        AttachReplayUI(gameOverPanel.transform);
+        if (gameOverPanel != null)
+        {
+            gameOverPanel.SetActive(true);
+            AttachReplayUI(gameOverPanel.transform);
+            StartCoroutine(AnimateStatsRevealRoutine(gameOverPacmanIcon, finalScoreText, accuracyText, maxComboText, finalScore, accuracy, maxCombo));
+        }
     }
 
     public void ShowLevelComplete(int finalScore, float accuracy, int maxCombo)
@@ -153,18 +158,104 @@ public class HUDManager : MonoBehaviour
         if (levelCompletePanel != null)
         {
             levelCompletePanel.SetActive(true);
+            AttachReplayUI(levelCompletePanel.transform);
+            StartCoroutine(AnimateStatsRevealRoutine(levelCompletePacmanIcon, levelCompleteScoreText, levelCompleteAccuracyText, levelCompleteMaxComboText, finalScore, accuracy, maxCombo));
+        }
+    }
 
-            if (levelCompleteScoreText != null)
-                levelCompleteScoreText.text = $"{finalScore}";
+    private IEnumerator AnimateStatsRevealRoutine(
+        RectTransform activePacmanIcon,
+        TextMeshProUGUI scoreTxt, 
+        TextMeshProUGUI accuracyTxt, 
+        TextMeshProUGUI comboTxt, 
+        int finalScore, 
+        float accuracy, 
+        int maxCombo)
+    {
+        // Hide only value texts initially
+        if (scoreTxt != null) { scoreTxt.text = ""; scoreTxt.gameObject.SetActive(false); }
+        if (accuracyTxt != null) { accuracyTxt.text = ""; accuracyTxt.gameObject.SetActive(false); }
+        if (comboTxt != null) { comboTxt.text = ""; comboTxt.gameObject.SetActive(false); }
 
-            if (levelCompleteAccuracyText != null)
-                levelCompleteAccuracyText.text = $"{accuracy:F1}%";
-
-            if (levelCompleteMaxComboText != null)
-                levelCompleteMaxComboText.text = $"{maxCombo}x";
+        Vector2 baseIconPos = Vector2.zero;
+        if (activePacmanIcon != null)
+        {
+            activePacmanIcon.gameObject.SetActive(true);
+            baseIconPos = activePacmanIcon.anchoredPosition; // Store initial top-left position
         }
 
-        AttachReplayUI(levelCompletePanel.transform);
+        yield return new WaitForSeconds(0.2f);
+
+        // --- Line 1: Final Score ---
+        if (scoreTxt != null)
+        {
+            PlayChompSound();
+            if (activePacmanIcon != null)
+            {
+                Vector2 startPos = baseIconPos;
+                Vector2 endPos = startPos + new Vector2(chompMoveDistance, 0f);
+                yield return StartCoroutine(ChompAcrossRow(activePacmanIcon, startPos, endPos, stepChompDelay));
+            }
+            scoreTxt.gameObject.SetActive(true);
+            scoreTxt.text = $"{finalScore}";
+        }
+
+        yield return new WaitForSeconds(0.15f);
+
+        // --- Line 2: Accuracy ---
+        if (accuracyTxt != null)
+        {
+            PlayChompSound();
+            if (activePacmanIcon != null)
+            {
+                Vector2 startPos = baseIconPos + new Vector2(0f, -70f);
+                Vector2 endPos = startPos + new Vector2(chompMoveDistance, 0f);
+                yield return StartCoroutine(ChompAcrossRow(activePacmanIcon, startPos, endPos, stepChompDelay));
+            }
+            accuracyTxt.gameObject.SetActive(true);
+            accuracyTxt.text = $"{accuracy:F1}%";
+        }
+
+        yield return new WaitForSeconds(0.15f);
+
+        // --- Line 3: Max Combo ---
+        if (comboTxt != null)
+        {
+            PlayChompSound();
+            if (activePacmanIcon != null)
+            {
+                Vector2 startPos = baseIconPos + new Vector2(0f, -140f);
+                Vector2 endPos = startPos + new Vector2(chompMoveDistance, 0f);
+                yield return StartCoroutine(ChompAcrossRow(activePacmanIcon, startPos, endPos, stepChompDelay));
+            }
+            comboTxt.gameObject.SetActive(true);
+            comboTxt.text = $"{maxCombo}x";
+        }
+    }
+
+    private IEnumerator ChompAcrossRow(RectTransform icon, Vector2 startPos, Vector2 endPos, float duration)
+    {
+        float elapsed = 0f;
+        icon.anchoredPosition = startPos;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            if (icon != null)
+            {
+                icon.anchoredPosition = Vector2.Lerp(startPos, endPos, t);
+            }
+            yield return null;
+        }
+    }
+
+    private void PlayChompSound()
+    {
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayNote(0);
+        }
     }
 
     // Reparents the single text and button to whichever end-screen panel is active
