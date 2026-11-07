@@ -54,7 +54,7 @@ A special Toxic Melon collectible randomly spawns on available neutral grid tile
 
   - The Benefit: Stepping on a Toxic Melon awards an instant +300 score bonus, adds +2 to the active combo multiplier, and triggers a temporary movement speed boost (halving move cooldown).
 
-  - The Toxic Consequence / Leap: It immediately triggers a Toxic Leap (PerformToxicLeap), forcibly propelling Pac-Man an extra step forward in his active movement direction.
+  - The Toxic Consequence / Leap: It immediately triggers a Toxic Leap (PerformToxicLeap), forcibly propelling Pac-Man an extra step forward in his active movement direction. Furthermore, during the 4-second Toxic Overdrive period, the ghost's movement interval is halved, causing it to patrol the grid at 2x speed.
 - **Interaction:** How does the remix change or interact with the original gameplay?  
 The Toxic remix disrupts careful, step-by-step path planning. While the double-tile leap and speed boost allow Pac-Man to cover ground faster, the forced extra tile movement can accidentally overshoot safe paths into lava tiles or straight into the ghost if the player does not calculate their leap trajectory accurately.
 - **Demonstration:** How can the grader observe the remix mechanic?  

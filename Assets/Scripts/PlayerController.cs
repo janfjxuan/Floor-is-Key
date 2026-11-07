@@ -76,6 +76,18 @@ public class PlayerController : MonoBehaviour
 
     void HandleGridInput()
     {
+        // Block player movement if game is over, if Recall Mode is active (preview/transition),
+        // or if the recall sequence is complete
+        if (GridManager.Instance != null)
+        {
+            if (GridManager.Instance.isGameOver ||
+                GridManager.Instance.isRecallModeActive ||
+                GridManager.Instance.IsRecallSequenceComplete())
+            {
+                return;
+            }
+        }
+
         int targetX = gridX;
         int targetY = gridY;
         bool inputReceived = false;
@@ -120,19 +132,15 @@ public class PlayerController : MonoBehaviour
                     UpdateGridPosition(targetX, targetY);
                     SnapToGridPosition(gridX, gridY);
 
-                    // =========================================================================
-                    // TOXIC OVERDRIVE SPEED BOOST (2x Movement Speed!)
-                    // =========================================================================
+                    // 2x Movement Speed
                     float effectiveCooldown = moveCooldown;
                     if (GridManager.Instance.isToxicActive)
                     {
-                        effectiveCooldown *= 0.5f; // Cuts move timer in half so Pac-Man steps twice as fast!
+                        effectiveCooldown *= 0.5f;
                     }
 
                     moveTimer = effectiveCooldown;
-                    // =========================================================================
 
-                    // IMMEDIATELY check if Pac-Man walked onto the ghost's tile!
                     GridManager.Instance.CheckPlayerGhostCollision(new Vector2Int(gridX, gridY));
                 }
             }
@@ -210,6 +218,13 @@ public class PlayerController : MonoBehaviour
 
     public void PerformToxicLeap(int dirX, int dirY)
     {
+        // Don't execute leap if sequence is complete or game is over
+        if (GridManager.Instance != null &&
+           (GridManager.Instance.isGameOver || GridManager.Instance.IsRecallSequenceComplete()))
+        {
+            return;
+        }
+
         // Calculate the bonus extra step forward in the player's active input direction
         int leapX = gridX + dirX;
         int leapY = gridY + dirY;

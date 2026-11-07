@@ -296,6 +296,11 @@ public class GridManager : MonoBehaviour
 
                 if (currentSequenceStep >= activeChunkLength)
                 {
+                    if (recallManager != null)
+                    {
+                        recallManager.isRecallModeActive = true;
+                    }
+
                     if (recallManager != null) recallManager.currentChunkIndex++;
 
                     if (recallManager != null && recallManager.GetCurrentChunkStartIndex() >= targetSequence.Length)
@@ -601,6 +606,21 @@ public class GridManager : MonoBehaviour
         if (recallManager != null) recallManager.isRecallModeActive = true;
         yield return new WaitForSeconds(0.6f);
         StartRecallModeRoutine();
+    }
+
+    public bool IsRecallSequenceComplete()
+    {
+        // Only check sequence completion bounds if Recall Mode is active!
+        if (GameManager.SelectedMode == GameMode.RecallMode && recallManager != null)
+        {
+            int activeChunkLength = (recallManager.currentChunkNotes != null)
+                ? recallManager.currentChunkNotes.Length
+                : 0;
+
+            return currentSequenceStep >= activeChunkLength;
+        }
+
+        return false;
     }
 
     // =========================================================================
