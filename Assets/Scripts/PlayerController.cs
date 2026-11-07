@@ -4,7 +4,7 @@ using System.Collections;
 public class PlayerController : MonoBehaviour
 {
     [Header("Movement Settings")]
-    public float moveCooldown = 0.15f; // Time between grid steps
+    public float moveCooldown = 0.15f;
     private float moveTimer = 0f;
 
     [Header("Grid Position")]
@@ -20,11 +20,13 @@ public class PlayerController : MonoBehaviour
 
     private Rigidbody2D rb;
     private Collider2D col;
+    private Animator anim;
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
         col = GetComponent<Collider2D>();
+        anim = GetComponent<Animator>();
 
         // Snap instantly to starting position center
         SnapToGridPosition(gridX, gridY);
@@ -42,7 +44,6 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        // Handle movement cooldown timer
         if (moveTimer > 0f)
         {
             moveTimer -= Time.deltaTime;
@@ -51,6 +52,17 @@ public class PlayerController : MonoBehaviour
         {
             HandleGridInput();
         }
+    }
+
+    void FixedUpdate()
+    {
+        if (GridManager.Instance != null && GridManager.Instance.isGameOver)
+        {
+            if (rb != null) rb.linearVelocity = Vector2.zero;
+            return;
+        }
+
+        if (rb != null) rb.linearVelocity = Vector2.zero;
     }
 
     void HandleGridInput()
@@ -63,21 +75,25 @@ public class PlayerController : MonoBehaviour
         {
             targetY++;
             inputReceived = true;
+            if (anim != null) anim.SetInteger("MoveDirection", 1);
         }
         else if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
         {
             targetY--;
             inputReceived = true;
+            if (anim != null) anim.SetInteger("MoveDirection", 3);
         }
         else if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
         {
             targetX--;
             inputReceived = true;
+            if (anim != null) anim.SetInteger("MoveDirection", 2);
         }
         else if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
         {
             targetX++;
             inputReceived = true;
+            if (anim != null) anim.SetInteger("MoveDirection", 0);
         }
 
         if (inputReceived)
@@ -91,6 +107,9 @@ public class PlayerController : MonoBehaviour
                     UpdateGridPosition(targetX, targetY);
                     SnapToGridPosition(gridX, gridY);
                     moveTimer = moveCooldown; // Apply delay between steps
+
+                    // IMMEDIATELY check if Pac-Man walked onto the ghost's tile!
+                    GridManager.Instance.CheckPlayerGhostCollision(new Vector2Int(gridX, gridY));
                 }
             }
         }
