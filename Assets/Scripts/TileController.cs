@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public enum TileState { Neutral, Safe, Lava, Crumbling }
+public enum TileState { Neutral, Safe, Lava }
 
 public class TileController : MonoBehaviour
 {
@@ -31,9 +31,6 @@ public class TileController : MonoBehaviour
                 break;
             case TileState.Lava:
                 spriteRenderer.color = new Color(1f, 0f, 0.33f);
-                break;
-            case TileState.Crumbling:
-                spriteRenderer.color = new Color(1f, 0.55f, 0f);
                 break;
         }
     }

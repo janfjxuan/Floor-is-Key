@@ -686,6 +686,11 @@ public class GridManager : MonoBehaviour
             HUDManager.Instance.ShowPhaseText("PLAY IT BACK!", 1.5f);
         }
 
+        if (HUDManager.Instance != null && currentChunkNotes != null)
+        {
+            HUDManager.Instance.UpdateRiffQueue(currentChunkNotes, 0);
+        }
+
         yield return new WaitForSeconds(0.3f);
 
         currentSequenceStep = 0;
