@@ -1,6 +1,9 @@
 using System.Collections;
 using UnityEngine;
 
+/// Applies temporary screen shake feedback directed toward player focus 
+/// upon error or damage events.
+
 public class CameraShake : MonoBehaviour
 {
     public static CameraShake Instance;
@@ -14,10 +17,12 @@ public class CameraShake : MonoBehaviour
 
     void Start()
     {
-        // Cache true home position once on launch
         originalPos = transform.localPosition;
     }
 
+    // =========================================================================
+    // CAMERA SHAKE ROUTINES
+    // =========================================================================
     public void Shake(float duration = 0.15f, float magnitude = 0.2f)
     {
         // Cancel any active shake so originalPos stays accurate

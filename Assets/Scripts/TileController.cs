@@ -1,5 +1,8 @@
 using UnityEngine;
 
+/// Defines standard tile visual states (Neutral, Safe, Lava, Toxic),
+/// handles player step triggers, and manages item sprite overlays.
+
 public enum TileState { Neutral, Safe, Lava, Toxic }
 
 public class TileController : MonoBehaviour
@@ -41,19 +44,23 @@ public class TileController : MonoBehaviour
         }
     }
 
-    private void OnTriggerEnter2D(Collider2D other)
-    {
-        if (other.CompareTag("Player"))
-        {
-            GridManager.Instance.OnPlayerStepTile(this);
-        }
-    }
-
     public void SetVisualHidden()
     {
         if (spriteRenderer != null)
         {
             spriteRenderer.color = new Color(0.1f, 0.1f, 0.18f);
+        }
+    }
+
+    // =========================================================================
+    // TRIGGER DETECTION & ITEM SPRAWNING
+    // =========================================================================
+
+    private void OnTriggerEnter2D(Collider2D other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            GridManager.Instance.OnPlayerStepTile(this);
         }
     }
 

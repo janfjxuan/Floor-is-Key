@@ -1,6 +1,9 @@
 using UnityEngine;
 using System.Collections;
 
+/// Controls Pac-Man movement, grid step cooldowns, direction animations,
+/// position snapping, and Toxic Leap mechanics.
+
 public class PlayerController : MonoBehaviour
 {
     [Header("Movement Settings")]
@@ -10,20 +13,19 @@ public class PlayerController : MonoBehaviour
     [Header("Grid Position")]
     public int gridX = 2;
     public int gridY = 2;
-
     public int previousGridX = 2;
     public int previousGridY = 2;
 
     [Header("Phase Starting Position")]
     public int chunkStartX = 2;
     public int chunkStartY = 2;
+    // Active movement direction tracking for Toxic Leap
+    public int lastDirX = 0;
+    public int lastDirY = 0;
 
     private Rigidbody2D rb;
     private Collider2D col;
     private Animator anim;
-
-    public int lastDirX = 0;
-    public int lastDirY = 0;
 
     void Start()
     {
@@ -67,6 +69,10 @@ public class PlayerController : MonoBehaviour
 
         if (rb != null) rb.linearVelocity = Vector2.zero;
     }
+
+    // =========================================================================
+    // INPUT HANDLING & MOVEMENT
+    // =========================================================================
 
     void HandleGridInput()
     {
@@ -133,6 +139,10 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    // =========================================================================
+    // POSITIONING & TELEPORTATION
+    // =========================================================================
+
     public void UpdateGridPosition(int newX, int newY)
     {
         if (newX != gridX || newY != gridY)
@@ -193,6 +203,10 @@ public class PlayerController : MonoBehaviour
     {
         if (col != null) col.enabled = true;
     }
+
+    // =========================================================================
+    // SPECIAL MECHANICS
+    // =========================================================================
 
     public void PerformToxicLeap(int dirX, int dirY)
     {

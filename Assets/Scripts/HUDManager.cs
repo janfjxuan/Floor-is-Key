@@ -5,6 +5,9 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using System.Collections;
 
+/// Manages head-up display elements, riff queues, timer bars,
+/// phase banners, Toxic Overdrive notifications, and stats animations.
+
 public class HUDManager : MonoBehaviour
 {
     public static HUDManager Instance;
@@ -15,10 +18,15 @@ public class HUDManager : MonoBehaviour
     public TextMeshProUGUI scoreText;
     public TextMeshProUGUI comboText;
 
+    [Header("Heart UI References")]
+    public GameObject[] heartImages;
+
+    [Header("UI Frame References")]
+    public GameObject gridBorderFrame;
+
     [Header("Riff Queue UI")]
     public TextMeshProUGUI[] queueSlots;
     public Image[] queueSlotBackgrounds;
-
     public Sprite defaultKeySprite;
     public Sprite selectedKeySprite;
 
@@ -32,6 +40,14 @@ public class HUDManager : MonoBehaviour
     [Header("Timer Bar References")]
     public Image timerFillImage;
     public float maxTime = 60f;
+
+    [Header("Phase Banner UI")]
+    [SerializeField] private TextMeshProUGUI phaseText;
+    private Coroutine activeBannerCoroutine;
+
+    [Header("Toxic Overdrive UI")]
+    [SerializeField] private TextMeshProUGUI toxicOverdriveText;
+    private Coroutine activeToxicBannerCoroutine;
 
     [Header("Game Over References")]
     public GameObject gameOverPanel;
@@ -56,28 +72,18 @@ public class HUDManager : MonoBehaviour
     public RectTransform accuracyLabel;
     public RectTransform maxComboLabel;
 
-    [Header("Heart UI References")]
-    public GameObject[] heartImages;
-
     [Header("Replay & Shared UI References")]
     public TextMeshProUGUI replayStatusText;
     public GameObject playAgainButton;
-
-    [Header("Phase Banner UI")]
-    [SerializeField] private TextMeshProUGUI phaseText;
-    private Coroutine activeBannerCoroutine;
-
-    [Header("Toxic Overdrive UI")]
-    [SerializeField] private TextMeshProUGUI toxicOverdriveText;
-    private Coroutine activeToxicBannerCoroutine;
-
-    [Header("UI Frame References")]
-    public GameObject gridBorderFrame;
 
     void Awake()
     {
         Instance = this;
     }
+
+    // =========================================================================
+    // HUD UPDATE METHODS
+    // =========================================================================
 
     public void UpdateRiffQueue(int[] sequence, int currentStep)
     {
@@ -146,6 +152,58 @@ public class HUDManager : MonoBehaviour
             comboText.text = $"x{currentCombo}";
         }
     }
+
+    // =========================================================================
+    // BANNERS & OVERLAYS
+    // =========================================================================
+    public void ShowPhaseText(string message, float duration = 2.0f)
+    {
+        if (phaseText == null) return;
+
+        if (activeBannerCoroutine != null)
+        {
+            StopCoroutine(activeBannerCoroutine);
+        }
+
+        activeBannerCoroutine = StartCoroutine(ShowPhaseTextRoutine(message, duration));
+    }
+
+    private IEnumerator ShowPhaseTextRoutine(string message, float duration)
+    {
+        phaseText.text = message;
+        phaseText.gameObject.SetActive(true);
+
+        yield return new WaitForSeconds(duration);
+
+        phaseText.gameObject.SetActive(false);
+        activeBannerCoroutine = null;
+    }
+
+    public void ShowToxicOverdriveText(float duration = 1.5f)
+    {
+        if (toxicOverdriveText == null) return;
+
+        if (activeToxicBannerCoroutine != null)
+        {
+            StopCoroutine(activeToxicBannerCoroutine);
+        }
+
+        activeToxicBannerCoroutine = StartCoroutine(ShowToxicTextRoutine(duration));
+    }
+
+    private IEnumerator ShowToxicTextRoutine(float duration)
+    {
+        toxicOverdriveText.gameObject.SetActive(true);
+
+        yield return new WaitForSeconds(duration);
+
+        toxicOverdriveText.gameObject.SetActive(false);
+        activeToxicBannerCoroutine = null;
+    }
+
+    // =========================================================================
+    // END-SCREEN PANELS & REVEAL ANIMATIONS
+    // =========================================================================
 
     public void ShowGameOver(int finalScore, float accuracy, int maxCombo)
     {
@@ -262,7 +320,10 @@ public class HUDManager : MonoBehaviour
         }
     }
 
-    // Reparents the single text and button to whichever end-screen panel is active
+    // =========================================================================
+    // REPLAY UI HELPERS
+    // =========================================================================
+
     private void AttachReplayUI(Transform targetPanel)
     {
         if (targetPanel == null) return;
@@ -303,51 +364,6 @@ public class HUDManager : MonoBehaviour
         {
             playAgainButton.SetActive(true);
         }
-    }
-
-    public void ShowPhaseText(string message, float duration = 2.0f)
-    {
-        if (phaseText == null) return;
-
-        if (activeBannerCoroutine != null)
-        {
-            StopCoroutine(activeBannerCoroutine);
-        }
-
-        activeBannerCoroutine = StartCoroutine(ShowPhaseTextRoutine(message, duration));
-    }
-
-    private IEnumerator ShowPhaseTextRoutine(string message, float duration)
-    {
-        phaseText.text = message;
-        phaseText.gameObject.SetActive(true);
-
-        yield return new WaitForSeconds(duration);
-
-        phaseText.gameObject.SetActive(false);
-        activeBannerCoroutine = null;
-    }
-
-    public void ShowToxicOverdriveText(float duration = 1.5f)
-    {
-        if (toxicOverdriveText == null) return;
-
-        if (activeToxicBannerCoroutine != null)
-        {
-            StopCoroutine(activeToxicBannerCoroutine);
-        }
-
-        activeToxicBannerCoroutine = StartCoroutine(ShowToxicTextRoutine(duration));
-    }
-
-    private IEnumerator ShowToxicTextRoutine(float duration)
-    {
-        toxicOverdriveText.gameObject.SetActive(true);
-
-        yield return new WaitForSeconds(duration);
-
-        toxicOverdriveText.gameObject.SetActive(false);
-        activeToxicBannerCoroutine = null;
     }
 
     public void RestartGame()

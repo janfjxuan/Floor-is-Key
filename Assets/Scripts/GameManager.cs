@@ -1,5 +1,7 @@
 using UnityEngine;
 
+/// Global static game mode router and recall speed options.
+
 public enum GameMode
 {
     StandardMode,

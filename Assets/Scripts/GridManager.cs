@@ -2,6 +2,9 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// Core game loop manager handling grid generation, state tracking,
+/// mode routing (Standard vs. Recall), ghost spawning, and Toxic Overdrive mechanics.
+
 public class GridManager : MonoBehaviour
 {
     public static GridManager Instance;
@@ -11,6 +14,8 @@ public class GridManager : MonoBehaviour
     public int rows = 5;
     public int cols = 5;
     public float tileSpacing = 1.1f;
+    private TileController[,] grid;
+
 
     [Header("Game State")]
     public float timeRemaining = 60f;
@@ -26,10 +31,7 @@ public class GridManager : MonoBehaviour
 
     [Header("Riff Presets")]
     public RiffData[] availableRiffs;
-
     private static List<int> riffPool = new List<int>();
-
-    private TileController[,] grid;
     private int[] targetSequence;
     private int currentSequenceStep = 0;
 
@@ -37,7 +39,6 @@ public class GridManager : MonoBehaviour
     public float previewDuration = 3.0f;
     public float baseSecondsPerNote = 0.45f;
     public bool isRecallModeActive = false;
-
     private List<Vector2Int> recallModePath = new List<Vector2Int>();
 
     [Header("Dynamic Escalation Settings")]
@@ -81,7 +82,6 @@ public class GridManager : MonoBehaviour
         currentSequenceStep = 0;
         currentChunkIndex = 0;
 
-        // Safe riff loading with thorough null checks
         if (availableRiffs != null && availableRiffs.Length > 0)
         {
             int selectedIndex = GetNextRiffIndex();
@@ -118,7 +118,7 @@ public class GridManager : MonoBehaviour
         {
             isRecallModeActive = false;
             SpawnNextTargetNote(startX, startY);
-            SpawnGhost(); // Spawn ghost AFTER target note is initialized in Standard Mode
+            SpawnGhost();
         }
 
         if (HUDManager.Instance != null)
@@ -129,77 +129,6 @@ public class GridManager : MonoBehaviour
             HUDManager.Instance.UpdateCombo(combo);
             HUDManager.Instance.UpdateRiffQueue(targetSequence, currentSequenceStep);
         }
-    }
-
-    void SpawnGhost()
-    {
-        if (ghostPrefab == null) return;
-
-        List<Vector2Int> validTiles = new List<Vector2Int>();
-        PlayerController player = FindFirstObjectByType<PlayerController>();
-        Vector2Int playerPos = player != null ? new Vector2Int(player.gridX, player.gridY) : new Vector2Int(-1, -1);
-
-        for (int x = 0; x < cols; x++)
-        {
-            for (int y = 0; y < rows; y++)
-            {
-                // Must not be the target (Safe) tile AND must not be the player tile
-                if (grid[x, y] != null &&
-                    grid[x, y].currentState != TileState.Safe &&
-                    (x != playerPos.x || y != playerPos.y))
-                {
-                    validTiles.Add(new Vector2Int(x, y));
-                }
-            }
-        }
-
-        Vector2Int chosenPos = new Vector2Int(cols - 1, rows - 1);
-        if (validTiles.Count > 0)
-        {
-            chosenPos = validTiles[Random.Range(0, validTiles.Count)];
-        }
-
-        if (activeGhost == null)
-        {
-            activeGhost = Instantiate(ghostPrefab);
-        }
-
-        activeGhost.gridPosition = chosenPos;
-        activeGhost.UpdateWorldPosition();
-    }
-
-    public TileController GetTileAt(int x, int y)
-    {
-        if (grid != null && x >= 0 && x < cols && y >= 0 && y < rows)
-        {
-            return grid[x, y];
-        }
-        return null;
-    }
-
-    private int GetNextRiffIndex()
-    {
-        if (availableRiffs == null || availableRiffs.Length == 0) return 0;
-
-        if (riffPool.Count == 0 || riffPool.Count > availableRiffs.Length)
-        {
-            riffPool.Clear();
-            for (int i = 0; i < availableRiffs.Length; i++)
-            {
-                if (availableRiffs[i] != null && availableRiffs[i].noteSequence != null)
-                {
-                    riffPool.Add(i);
-                }
-            }
-        }
-
-        if (riffPool.Count == 0) return 0;
-
-        int randomIndex = Random.Range(0, riffPool.Count);
-        int chosenIndex = riffPool[randomIndex];
-        riffPool.RemoveAt(randomIndex);
-
-        return chosenIndex;
     }
 
     void Update()
@@ -216,6 +145,58 @@ public class GridManager : MonoBehaviour
         {
             EndGame();
         }
+    }
+
+    // =========================================================================
+    // GRID CREATION & ACCESSORS
+    // =========================================================================
+    void GenerateGrid()
+    {
+        grid = new TileController[cols, rows];
+
+        float offsetX = (cols - 1) * tileSpacing / 2f;
+        float offsetY = (rows - 1) * tileSpacing / 2f;
+        float verticalShift = -1.85f;
+
+        for (int x = 0; x < cols; x++)
+        {
+            for (int y = 0; y < rows; y++)
+            {
+                Vector2 pos = new Vector2(
+                    x * tileSpacing - offsetX,
+                    (y * tileSpacing - offsetY) + verticalShift
+                );
+                GameObject tileObj = Instantiate(tilePrefab, pos, Quaternion.identity, transform);
+
+                TileController tile = tileObj.GetComponent<TileController>();
+                tile.gridX = x;
+                tile.gridY = y;
+                tile.SetState(TileState.Neutral);
+
+                grid[x, y] = tile;
+            }
+        }
+    }
+
+    public TileController GetTileAt(int x, int y)
+    {
+        if (grid != null && x >= 0 && x < cols && y >= 0 && y < rows)
+        {
+            return grid[x, y];
+        }
+        return null;
+    }
+
+    public Vector3 GetTileWorldPosition(int x, int y)
+    {
+        if (grid != null && x >= 0 && x < cols && y >= 0 && y < rows)
+        {
+            if (grid[x, y] != null)
+            {
+                return grid[x, y].transform.position;
+            }
+        }
+        return Vector3.zero;
     }
 
     public void SetGridAndPlayerVisible(bool visible)
@@ -246,18 +227,34 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    public Vector3 GetTileWorldPosition(int x, int y)
+    private int GetNextRiffIndex()
     {
-        if (grid != null && x >= 0 && x < cols && y >= 0 && y < rows)
+        if (availableRiffs == null || availableRiffs.Length == 0) return 0;
+
+        if (riffPool.Count == 0 || riffPool.Count > availableRiffs.Length)
         {
-            if (grid[x, y] != null)
+            riffPool.Clear();
+            for (int i = 0; i < availableRiffs.Length; i++)
             {
-                return grid[x, y].transform.position;
+                if (availableRiffs[i] != null && availableRiffs[i].noteSequence != null)
+                {
+                    riffPool.Add(i);
+                }
             }
         }
-        return Vector3.zero;
+
+        if (riffPool.Count == 0) return 0;
+
+        int randomIndex = Random.Range(0, riffPool.Count);
+        int chosenIndex = riffPool[randomIndex];
+        riffPool.RemoveAt(randomIndex);
+
+        return chosenIndex;
     }
 
+    // =========================================================================
+    // PLAYER STEP & TILE INTERACTION LOGIC
+    // =========================================================================
     public void OnPlayerStepTile(TileController steppedTile)
     {
         if (isGameOver || steppedTile == null || isRecallModeActive) return;
@@ -419,7 +416,6 @@ public class GridManager : MonoBehaviour
                 }
             }
         }
-
     }
 
     private void HandleStepError(PlayerController player)
@@ -461,93 +457,9 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    public void CheckPlayerGhostCollision(Vector2Int playerPos)
-    {
-        // Ignore ghost collision checks completely in Recall Mode
-        if (GameManager.SelectedMode == GameMode.RecallMode) return;
-
-        if (activeGhost != null && activeGhost.gameObject.activeSelf && activeGhost.CheckPlayerCollision(playerPos))
-        {
-            HandleGhostCollision();
-        }
-    }
-
-    void HandleGhostCollision()
-    {
-        combo = 0;
-        lives--;
-
-        if (HUDManager.Instance != null)
-        {
-            HUDManager.Instance.UpdateLives(lives);
-            HUDManager.Instance.UpdateCombo(combo);
-        }
-
-        if (CameraShake.Instance != null) CameraShake.Instance.Shake(0.25f, 0.3f);
-
-        if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.PlayWrongStep();
-        }
-
-        if (lives <= 0)
-        {
-            EndGame();
-        }
-    }
-
-    private IEnumerator UnlockPreviewAfterDelay(float delay)
-    {
-        yield return new WaitForSeconds(delay);
-        isRecallModeActive = false;
-    }
-
-    private IEnumerator TransitionToNextChunkRoutine()
-    {
-        isRecallModeActive = true;
-        yield return new WaitForSeconds(0.6f);
-        StartCoroutine(StartRecallRoutine());
-    }
-
-    private int GetCurrentChunkStartIndex()
-    {
-        int index = 0;
-        for (int i = 0; i < currentChunkIndex; i++)
-        {
-            int length = (i < chunkLengths.Length) ? chunkLengths[i] : chunkLengths[chunkLengths.Length - 1];
-            index += length;
-        }
-        return index;
-    }
-
-    void GenerateGrid()
-    {
-        grid = new TileController[cols, rows];
-
-        float offsetX = (cols - 1) * tileSpacing / 2f;
-        float offsetY = (rows - 1) * tileSpacing / 2f;
-        float verticalShift = -1.85f;
-
-        for (int x = 0; x < cols; x++)
-        {
-            for (int y = 0; y < rows; y++)
-            {
-                Vector2 pos = new Vector2(
-                    x * tileSpacing - offsetX,
-                    (y * tileSpacing - offsetY) + verticalShift
-                );
-                GameObject tileObj = Instantiate(tilePrefab, pos, Quaternion.identity, transform);
-
-                TileController tile = tileObj.GetComponent<TileController>();
-                tile.gridX = x;
-                tile.gridY = y;
-                tile.SetState(TileState.Neutral);
-
-                grid[x, y] = tile;
-            }
-        }
-    }
-
+    // =========================================================================
+    // STANDARD MODE TARGET & PATH GENERATION
+    // =========================================================================
     public void SpawnNextTargetNote(int playerX, int playerY)
     {
         ClearAllToxicMelons();
@@ -688,6 +600,9 @@ public class GridManager : MonoBehaviour
         return false;
     }
 
+    // =========================================================================
+    // RECALL MODE ROUTINES & PATHING
+    // =========================================================================
     public IEnumerator StartRecallRoutine()
     {
         isRecallModeActive = true;
@@ -878,6 +793,110 @@ public class GridManager : MonoBehaviour
         grid[targetPos.x, targetPos.y].SetVisualHidden();
     }
 
+    private IEnumerator UnlockPreviewAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        isRecallModeActive = false;
+    }
+
+    private IEnumerator TransitionToNextChunkRoutine()
+    {
+        isRecallModeActive = true;
+        yield return new WaitForSeconds(0.6f);
+        StartCoroutine(StartRecallRoutine());
+    }
+
+    private int GetCurrentChunkStartIndex()
+    {
+        int index = 0;
+        for (int i = 0; i < currentChunkIndex; i++)
+        {
+            int length = (i < chunkLengths.Length) ? chunkLengths[i] : chunkLengths[chunkLengths.Length - 1];
+            index += length;
+        }
+        return index;
+    }
+
+    // =========================================================================
+    // GHOST MECHANICS
+    // =========================================================================
+
+    void SpawnGhost()
+    {
+        if (ghostPrefab == null) return;
+
+        List<Vector2Int> validTiles = new List<Vector2Int>();
+        PlayerController player = FindFirstObjectByType<PlayerController>();
+        Vector2Int playerPos = player != null ? new Vector2Int(player.gridX, player.gridY) : new Vector2Int(-1, -1);
+
+        for (int x = 0; x < cols; x++)
+        {
+            for (int y = 0; y < rows; y++)
+            {
+                // Must not be the target (Safe) tile AND must not be the player tile
+                if (grid[x, y] != null &&
+                    grid[x, y].currentState != TileState.Safe &&
+                    (x != playerPos.x || y != playerPos.y))
+                {
+                    validTiles.Add(new Vector2Int(x, y));
+                }
+            }
+        }
+
+        Vector2Int chosenPos = new Vector2Int(cols - 1, rows - 1);
+        if (validTiles.Count > 0)
+        {
+            chosenPos = validTiles[Random.Range(0, validTiles.Count)];
+        }
+
+        if (activeGhost == null)
+        {
+            activeGhost = Instantiate(ghostPrefab);
+        }
+
+        activeGhost.gridPosition = chosenPos;
+        activeGhost.UpdateWorldPosition();
+    }
+
+    public void CheckPlayerGhostCollision(Vector2Int playerPos)
+    {
+        // Ignore ghost collision checks completely in Recall Mode
+        if (GameManager.SelectedMode == GameMode.RecallMode) return;
+
+        if (activeGhost != null && activeGhost.gameObject.activeSelf && activeGhost.CheckPlayerCollision(playerPos))
+        {
+            HandleGhostCollision();
+        }
+    }
+
+    void HandleGhostCollision()
+    {
+        combo = 0;
+        lives--;
+
+        if (HUDManager.Instance != null)
+        {
+            HUDManager.Instance.UpdateLives(lives);
+            HUDManager.Instance.UpdateCombo(combo);
+        }
+
+        if (CameraShake.Instance != null) CameraShake.Instance.Shake(0.25f, 0.3f);
+
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayWrongStep();
+        }
+
+        if (lives <= 0)
+        {
+            EndGame();
+        }
+    }
+
+    // =========================================================================
+    // TOXIC OVERDRIVE & COLLECTIBLES
+    // =========================================================================
+
     public void TriggerToxicOverdrive()
     {
         if (toxicCoroutine != null) StopCoroutine(toxicCoroutine);
@@ -897,6 +916,28 @@ public class GridManager : MonoBehaviour
 
         isToxicActive = false;
     }
+
+    public void ClearAllToxicMelons()
+    {
+        for (int x = 0; x < cols; x++)
+        {
+            for (int y = 0; y < rows; y++)
+            {
+                if (grid[x, y] != null)
+                {
+                    grid[x, y].ClearItem();
+                    if (grid[x, y].currentState == TileState.Toxic)
+                    {
+                        grid[x, y].currentState = TileState.Neutral;
+                    }
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // LEVEL COMPLETION & GAME OVER
+    // =========================================================================
 
     void CompleteLevel()
     {
@@ -931,34 +972,6 @@ public class GridManager : MonoBehaviour
         StartCoroutine(StartReplayWithDelayRoutine(1.8f));
     }
 
-    public void ClearAllToxicMelons()
-    {
-        for (int x = 0; x < cols; x++)
-        {
-            for (int y = 0; y < rows; y++)
-            {
-                if (grid[x, y] != null)
-                {
-                    grid[x, y].ClearItem();
-                    if (grid[x, y].currentState == TileState.Toxic)
-                    {
-                        grid[x, y].currentState = TileState.Neutral;
-                    }
-                }
-            }
-        }
-    }
-
-    private IEnumerator StartReplayWithDelayRoutine(float delaySeconds)
-    {
-        yield return new WaitForSeconds(delaySeconds);
-
-        if (ReplayManager.Instance != null)
-        {
-            ReplayManager.Instance.StartReplay();
-        }
-    }
-
     void EndGame()
     {
         isGameOver = true;
@@ -990,5 +1003,15 @@ public class GridManager : MonoBehaviour
         }
 
         StartCoroutine(StartReplayWithDelayRoutine(1.8f));
+    }
+
+    private IEnumerator StartReplayWithDelayRoutine(float delaySeconds)
+    {
+        yield return new WaitForSeconds(delaySeconds);
+
+        if (ReplayManager.Instance != null)
+        {
+            ReplayManager.Instance.StartReplay();
+        }
     }
 }

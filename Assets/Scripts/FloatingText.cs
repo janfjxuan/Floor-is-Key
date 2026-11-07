@@ -1,8 +1,12 @@
 using UnityEngine;
 using TMPro;
 
+/// Animates world-space pop-up text (e.g. scores, combo boosts) 
+/// floating upward and fading out over Pac-Man's position.
+
 public class FloatingText : MonoBehaviour
 {
+    [Header("Animation Settings")]
     public float moveSpeed = 1.5f;
     public float fadeDuration = 0.8f;
 
@@ -21,7 +25,6 @@ public class FloatingText : MonoBehaviour
 
     void Update()
     {
-        // Float upward in world space
         transform.position += Vector3.up * moveSpeed * Time.deltaTime;
         timer += Time.deltaTime;
 

@@ -2,6 +2,8 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// Persists and plays back player step history upon game over or level complete.
+
 public class ReplayManager : MonoBehaviour
 {
     public static ReplayManager Instance;

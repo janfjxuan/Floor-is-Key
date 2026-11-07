@@ -1,12 +1,14 @@
 using UnityEngine;
 using UnityEngine.UI;
 
+/// Custom UI graphics renderer for rounded neon vector containers.
+
 [RequireComponent(typeof(CanvasRenderer))]
 public class UIRoundedBox : MaskableGraphic
 {
     [Header("Box Dimensions & Style")]
     public float cornerRadius = 16f;
-    public Color borderColor = new Color(0f, 1f, 1f, 1f); // Neon Cyan
+    public Color borderColor = new Color(0f, 1f, 1f, 1f);
     public float borderWidth = 2f;
 
     protected override void OnPopulateMesh(VertexHelper vh)
@@ -17,13 +19,11 @@ public class UIRoundedBox : MaskableGraphic
         Color32 fillColor = color;
         Color32 strokeColor = borderColor;
 
-        // Draw outer border box first
         if (borderWidth > 0)
         {
             AddRoundedRect(vh, rect, cornerRadius, strokeColor);
         }
 
-        // Draw inner fill box shrunk by borderWidth
         Rect innerRect = new Rect(
             rect.x + borderWidth,
             rect.y + borderWidth,
@@ -51,7 +51,6 @@ public class UIRoundedBox : MaskableGraphic
         vh.AddVert(new Vector3(r.xMax - radius, r.yMin), col, Vector2.zero);
         vh.AddVert(new Vector3(r.xMin + radius, r.yMin), col, Vector2.zero);
 
-        // Fan triangles from center
         int centerIndex = vh.currentVertCount;
         vh.AddVert(new Vector3(r.center.x, r.center.y), col, Vector2.zero);
 

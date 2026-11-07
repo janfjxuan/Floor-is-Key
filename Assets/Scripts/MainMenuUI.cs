@@ -2,6 +2,8 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 
+/// Handles main menu scene navigation, speed settings panel, and mode launch.
+
 public class MainMenuUI : MonoBehaviour
 {
     [Header("UI Panels")]

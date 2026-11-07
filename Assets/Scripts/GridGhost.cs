@@ -2,6 +2,9 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Collections;
 
+/// Controls autonomous Ghost enemy movement on the grid, interval timing,
+/// speed modifiers during Toxic Overdrive, and player collision detection.
+
 public class GridGhost : MonoBehaviour
 {
     public Vector2Int gridPosition;
@@ -42,6 +45,10 @@ public class GridGhost : MonoBehaviour
             }
         }
     }
+
+    // =========================================================================
+    // AI PATHING & POSITIONING
+    // =========================================================================
 
     public void MoveRandomly(int gridWidth, int gridHeight, List<Vector2Int> obstacles = null)
     {
@@ -101,6 +108,10 @@ public class GridGhost : MonoBehaviour
             transform.position = new Vector3(gridPosition.x, gridPosition.y, 0f);
         }
     }
+
+    // =========================================================================
+    // COLLISION CHECKS
+    // =========================================================================
 
     public bool CheckPlayerCollision(Vector2Int playerPos)
     {
