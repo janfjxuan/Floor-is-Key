@@ -88,60 +88,69 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        int targetX = gridX;
-        int targetY = gridY;
+        int inputDirX = 0;
+        int inputDirY = 0;
         bool inputReceived = false;
 
         if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
         {
-            targetY++;
-            lastDirX = 0; lastDirY = 1;
+            inputDirY = 1;
             inputReceived = true;
             if (anim != null) anim.SetInteger("MoveDirection", 1);
         }
         else if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
         {
-            targetY--;
-            lastDirX = 0; lastDirY = -1;
+            inputDirY = -1;
             inputReceived = true;
             if (anim != null) anim.SetInteger("MoveDirection", 3);
         }
         else if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
         {
-            targetX--;
-            lastDirX = -1; lastDirY = 0;
+            inputDirX = -1;
             inputReceived = true;
             if (anim != null) anim.SetInteger("MoveDirection", 2);
         }
         else if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
         {
-            targetX++;
-            lastDirX = 1; lastDirY = 0;
+            inputDirX = 1;
             inputReceived = true;
             if (anim != null) anim.SetInteger("MoveDirection", 0);
         }
 
         if (inputReceived)
         {
-            // Check boundaries before moving
+            lastDirX = inputDirX;
+            lastDirY = inputDirY;
+
+            // Check if 4-second Toxic Overdrive is active -> move 2 tiles, else 1 tile
+            int stepDistance = (GridManager.Instance != null && GridManager.Instance.isToxicActive) ? 2 : 1;
+
+            int targetX = gridX + (inputDirX * stepDistance);
+            int targetY = gridY + (inputDirY * stepDistance);
+
+            // Clamp target coordinates so player doesn't leap outside grid bounds
             if (GridManager.Instance != null)
             {
-                if (targetX >= 0 && targetX < GridManager.Instance.cols &&
-                    targetY >= 0 && targetY < GridManager.Instance.rows)
+                targetX = Mathf.Clamp(targetX, 0, GridManager.Instance.cols - 1);
+                targetY = Mathf.Clamp(targetY, 0, GridManager.Instance.rows - 1);
+
+                UpdateGridPosition(targetX, targetY);
+                SnapToGridPosition(gridX, gridY);
+
+                // Faster move cooldown during Toxic Overdrive for responsive gameplay
+                float effectiveCooldown = moveCooldown;
+                if (GridManager.Instance.isToxicActive)
                 {
-                    UpdateGridPosition(targetX, targetY);
-                    SnapToGridPosition(gridX, gridY);
+                    effectiveCooldown *= 0.5f;
+                }
 
-                    // 2x Movement Speed
-                    float effectiveCooldown = moveCooldown;
-                    if (GridManager.Instance.isToxicActive)
-                    {
-                        effectiveCooldown *= 0.5f;
-                    }
+                moveTimer = effectiveCooldown;
 
-                    moveTimer = effectiveCooldown;
-
-                    GridManager.Instance.CheckPlayerGhostCollision(new Vector2Int(gridX, gridY));
+                // Check if player lands on target/lava tile or ghost
+                TileController targetTile = GridManager.Instance.GetTileAt(gridX, gridY);
+                if (targetTile != null)
+                {
+                    GridManager.Instance.OnPlayerStepTile(targetTile);
                 }
             }
         }

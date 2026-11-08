@@ -207,6 +207,8 @@ public class HUDManager : MonoBehaviour
 
     public void ShowGameOver(int finalScore, float accuracy, int maxCombo)
     {
+        HideAllBanners();
+
         if (gameOverPanel != null)
         {
             gameOverPanel.SetActive(true);
@@ -217,6 +219,8 @@ public class HUDManager : MonoBehaviour
 
     public void ShowLevelComplete(int finalScore, float accuracy, int maxCombo)
     {
+        HideAllBanners();
+
         if (levelCompletePanel != null)
         {
             levelCompletePanel.SetActive(true);
@@ -369,5 +373,27 @@ public class HUDManager : MonoBehaviour
     public void RestartGame()
     {
         SceneManager.LoadScene("MainMenu");
+    }
+
+    // =========================================================================
+    // BANNERS & OVERLAYS CLEANUP
+    // =========================================================================
+
+    public void HideAllBanners()
+    {
+        if (activeBannerCoroutine != null)
+        {
+            StopCoroutine(activeBannerCoroutine);
+            activeBannerCoroutine = null;
+        }
+
+        if (activeToxicBannerCoroutine != null)
+        {
+            StopCoroutine(activeToxicBannerCoroutine);
+            activeToxicBannerCoroutine = null;
+        }
+
+        if (phaseText != null) phaseText.gameObject.SetActive(false);
+        if (toxicOverdriveText != null) toxicOverdriveText.gameObject.SetActive(false);
     }
 }

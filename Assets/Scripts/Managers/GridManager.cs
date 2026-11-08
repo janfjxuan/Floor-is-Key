@@ -2,10 +2,9 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
 /// Core game loop coordinator managing grid initialization, score/lives tracking,
 /// mode routing, and delegation to specialized sub-managers.
-/// </summary>
+
 public class GridManager : MonoBehaviour
 {
     public static GridManager Instance;
@@ -14,6 +13,10 @@ public class GridManager : MonoBehaviour
     public ToxicItemManager toxicManager;
     public GridPathfinder pathfinder;
     public RecallModeManager recallManager;
+
+    private float lastErrorTime = 0f;
+    private float lastGhostHitTime = 0f;
+    private float lastStepTime = 0f;
 
     public bool isToxicActive => toxicManager != null && toxicManager.isToxicActive;
     public bool isRecallModeActive => recallManager != null && recallManager.isRecallModeActive;
@@ -253,6 +256,10 @@ public class GridManager : MonoBehaviour
     {
         if (isGameOver || steppedTile == null || isRecallModeActive) return;
 
+        // Prevent physics trigger + manual input script from processing the same step twice
+        if (Time.time - lastStepTime < 0.08f) return;
+        lastStepTime = Time.time;
+
         PlayerController player = FindFirstObjectByType<PlayerController>();
 
         // ---------------------------------------------------------------------
@@ -405,12 +412,9 @@ public class GridManager : MonoBehaviour
                 }
 
                 steppedTile.SetState(TileState.Neutral);
-                TriggerToxicOverdrive();
 
-                if (player != null)
-                {
-                    player.PerformToxicLeap(player.lastDirX, player.lastDirY);
-                }
+                // Starts the 4-second Toxic Overdrive timer!
+                TriggerToxicOverdrive();
 
                 if (activeGhost != null && activeGhost.CheckPlayerCollision(new Vector2Int(player.gridX, player.gridY)))
                 {
@@ -422,6 +426,10 @@ public class GridManager : MonoBehaviour
 
     private void HandleStepError(PlayerController player)
     {
+        // Prevent double-triggering error penalties within the same move frame
+        if (Time.time - lastErrorTime < 0.15f) return;
+        lastErrorTime = Time.time;
+
         totalSteps++;
         combo = 0;
         lives--;
@@ -566,7 +574,9 @@ public class GridManager : MonoBehaviour
 
     public void SpawnNextRecallModeTarget()
     {
-        if (recallManager == null || currentSequenceStep >= recallManager.recallModePath.Count - 1) return;
+        if (recallManager == null || recallManager.currentChunkNotes == null) return;
+        if (currentSequenceStep >= recallManager.currentChunkNotes.Length) return;
+        if (currentSequenceStep + 1 >= recallManager.recallModePath.Count) return;
 
         Vector2Int targetPos = recallManager.recallModePath[currentSequenceStep + 1];
         int noteToPlay = recallManager.currentChunkNotes[currentSequenceStep];
@@ -575,6 +585,7 @@ public class GridManager : MonoBehaviour
         Vector2Int playerPos = player != null ? new Vector2Int(player.gridX, player.gridY) : new Vector2Int(-1, -1);
         Vector2Int startPos = recallManager.recallModePath.Count > 0 ? recallManager.recallModePath[0] : new Vector2Int(-1, -1);
 
+        // 1. Set logical states across the grid
         for (int x = 0; x < cols; x++)
         {
             for (int y = 0; y < rows; y++)
@@ -587,12 +598,20 @@ public class GridManager : MonoBehaviour
                 {
                     grid[x, y].SetState(TileState.Lava);
                 }
-                grid[x, y].SetVisualHidden();
             }
         }
 
+        // 2. Set the current target step to Safe
         grid[targetPos.x, targetPos.y].SetState(TileState.Safe, noteToPlay);
-        grid[targetPos.x, targetPos.y].SetVisualHidden();
+
+        // 3. Hide all tile visuals so Recall Mode remains a blind memory test!
+        for (int x = 0; x < cols; x++)
+        {
+            for (int y = 0; y < rows; y++)
+            {
+                grid[x, y].SetVisualHidden();
+            }
+        }
     }
 
     private IEnumerator UnlockPreviewAfterDelay(float delay)
@@ -674,6 +693,10 @@ public class GridManager : MonoBehaviour
 
     void HandleGhostCollision()
     {
+        // Prevent ghost collision from deducting lives twice in one step
+        if (Time.time - lastGhostHitTime < 0.3f) return;
+        lastGhostHitTime = Time.time;
+
         combo = 0;
         lives--;
 

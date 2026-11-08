@@ -73,7 +73,7 @@ public class ToxicItemManager : MonoBehaviour
 
         if (HUDManager.Instance != null)
         {
-            HUDManager.Instance.ShowToxicOverdriveText(1.5f);
+            HUDManager.Instance.ShowToxicOverdriveText(toxicDuration);
         }
 
         yield return new WaitForSeconds(toxicDuration);
