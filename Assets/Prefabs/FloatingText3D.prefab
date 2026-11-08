@@ -116,7 +116,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967040
+    rgba: 4292310216
   m_fontColor: {r: 0.7843138, g: 0.454902, b: 0.8431373, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -191,8 +191,8 @@ MonoBehaviour:
   m_GameObject: {fileID: 7485255341426392042}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 25c38c32827b2a141bb75d8aa488f8c9, type: 3}
+  m_Script: {fileID: 11500000, guid: 858b2251b0bc09941a0bce0f4fe6e782, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FloatingText
-  moveSpeed: 1
+  moveSpeed: 1.5
   fadeDuration: 3
