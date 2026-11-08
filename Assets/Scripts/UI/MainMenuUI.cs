@@ -16,12 +16,33 @@ public class MainMenuUI : MonoBehaviour
     public Sprite normalButtonSprite;
     public Sprite selectedButtonSprite;
 
+    [Header("How To Play Modal")]
+    public GameObject howToPlayPanel;
+
     void Start()
     {
         // Ensure settings panel is hidden when the main menu first loads
         if (settingsPanel != null)
         {
             settingsPanel.SetActive(false);
+        }
+    }
+
+    // Call this from the [?] button
+    public void OpenHowToPlayPanel()
+    {
+        if (howToPlayPanel != null)
+        {
+            howToPlayPanel.SetActive(true);
+        }
+    }
+
+    // Call this from the CloseButton inside the popup
+    public void CloseHowToPlayPanel()
+    {
+        if (howToPlayPanel != null)
+        {
+            howToPlayPanel.SetActive(false);
         }
     }
 
