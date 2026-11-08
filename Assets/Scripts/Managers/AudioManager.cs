@@ -1,6 +1,6 @@
 using UnityEngine;
 
-/// Handles sound effect playback for pitch-mapped musical notes, 
+/// Handles sound effect playback for musical notes, 
 /// wrong step penalties, level complete stingers, and game over audio.
 
 public class AudioManager : MonoBehaviour

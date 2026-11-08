@@ -1,8 +1,7 @@
 using System.Collections;
 using UnityEngine;
 
-/// Applies temporary screen shake feedback directed toward player focus 
-/// upon error or damage events.
+/// Applies temporary screen shake feedback directed toward player focus upon collision events.
 
 public class CameraShake : MonoBehaviour
 {
@@ -25,7 +24,6 @@ public class CameraShake : MonoBehaviour
     // =========================================================================
     public void Shake(float duration = 0.15f, float magnitude = 0.2f)
     {
-        // Cancel any active shake so originalPos stays accurate
         StopAllCoroutines();
         StartCoroutine(DoShake(duration, magnitude));
     }
@@ -34,7 +32,6 @@ public class CameraShake : MonoBehaviour
     {
         float elapsed = 0f;
 
-        // Find player position to pull camera inward towards grid center
         Vector3 targetCenter = Vector3.zero;
         PlayerController player = FindFirstObjectByType<PlayerController>();
         if (player != null)

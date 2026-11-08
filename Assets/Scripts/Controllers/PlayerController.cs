@@ -3,7 +3,6 @@ using System.Collections;
 
 /// Controls Pac-Man movement, grid step cooldowns, direction animations,
 /// position snapping, and Toxic Leap mechanics.
-
 public class PlayerController : MonoBehaviour
 {
     [Header("Movement Settings")]

@@ -49,7 +49,6 @@ public class RecallModeManager : MonoBehaviour
         currentChunkNotes = new int[chunkLength];
         System.Array.Copy(targetSequence, startIndex, currentChunkNotes, 0, chunkLength);
 
-        // Keep start position grounded to current player pos or default (2,2)
         int startX = player != null ? player.gridX : 2;
         int startY = player != null ? player.gridY : 2;
 
@@ -98,7 +97,6 @@ public class RecallModeManager : MonoBehaviour
 
         yield return new WaitForSeconds(0.3f);
 
-        // CRITICAL FIX 2: Explicitly snap player to recallModePath[0]
         if (player != null && recallModePath.Count > 0)
         {
             Vector2Int startPos = recallModePath[0];

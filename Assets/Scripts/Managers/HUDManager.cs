@@ -64,8 +64,8 @@ public class HUDManager : MonoBehaviour
     [Header("Pac-Man Chomp Animation Settings")]
     public RectTransform levelCompletePacmanIcon;
     public RectTransform gameOverPacmanIcon;
-    public float stepChompDelay = 0.35f; // Delay per revealed line
-    public float chompMoveDistance = 200f; // Horizontal shift distance across line
+    public float stepChompDelay = 0.35f;
+    public float chompMoveDistance = 200f;
 
     [Header("Label RectTransforms for Chomp Pathing")]
     public RectTransform finalScoreLabel;
@@ -238,7 +238,6 @@ public class HUDManager : MonoBehaviour
         float accuracy,
         int maxCombo)
     {
-        // Hide only value texts initially
         if (scoreTxt != null) { scoreTxt.text = ""; scoreTxt.gameObject.SetActive(false); }
         if (accuracyTxt != null) { accuracyTxt.text = ""; accuracyTxt.gameObject.SetActive(false); }
         if (comboTxt != null) { comboTxt.text = ""; comboTxt.gameObject.SetActive(false); }
@@ -247,12 +246,11 @@ public class HUDManager : MonoBehaviour
         if (activePacmanIcon != null)
         {
             activePacmanIcon.gameObject.SetActive(true);
-            baseIconPos = activePacmanIcon.anchoredPosition; // Store initial top-left position
+            baseIconPos = activePacmanIcon.anchoredPosition;
         }
 
         yield return new WaitForSeconds(0.2f);
 
-        // --- Line 1: Final Score ---
         if (scoreTxt != null)
         {
             PlayChompSound();
@@ -268,7 +266,6 @@ public class HUDManager : MonoBehaviour
 
         yield return new WaitForSeconds(0.15f);
 
-        // --- Line 2: Accuracy ---
         if (accuracyTxt != null)
         {
             PlayChompSound();
@@ -284,7 +281,6 @@ public class HUDManager : MonoBehaviour
 
         yield return new WaitForSeconds(0.15f);
 
-        // --- Line 3: Max Combo ---
         if (comboTxt != null)
         {
             PlayChompSound();

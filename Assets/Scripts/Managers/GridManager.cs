@@ -58,7 +58,6 @@ public class GridManager : MonoBehaviour
     {
         Instance = this;
 
-        // Auto-fetch attached sub-managers if not manually linked in Inspector
         if (toxicManager == null) toxicManager = GetComponent<ToxicItemManager>();
         if (pathfinder == null) pathfinder = GetComponent<GridPathfinder>();
         if (recallManager == null) recallManager = GetComponent<RecallModeManager>();
@@ -334,9 +333,11 @@ public class GridManager : MonoBehaviour
                 HandleStepError(player);
             }
         }
+
         // ---------------------------------------------------------------------
         // STANDARD MODE STEP HANDLING
         // ---------------------------------------------------------------------
+
         else
         {
             if (steppedTile.currentState == TileState.Safe)
@@ -413,7 +414,6 @@ public class GridManager : MonoBehaviour
 
                 steppedTile.SetState(TileState.Neutral);
 
-                // Starts the 4-second Toxic Overdrive timer!
                 TriggerToxicOverdrive();
 
                 if (activeGhost != null && activeGhost.CheckPlayerCollision(new Vector2Int(player.gridX, player.gridY)))
@@ -453,19 +453,14 @@ public class GridManager : MonoBehaviour
         if (GameManager.SelectedMode == GameMode.RecallMode)
         {
             if (recallManager != null) recallManager.isRecallModeActive = true;
-            currentSequenceStep = 0; // Reset step counter on mistake
+            currentSequenceStep = 0;
 
-            // =========================================================================
-            // RECALL MODE RESPRAWN FIX
-            // Update chunk starting position to position 0 of the active chunk path!
-            // =========================================================================
             if (player != null && recallManager != null && recallManager.recallModePath.Count > 0)
             {
                 Vector2Int startPos = recallManager.recallModePath[0];
                 player.SetChunkStartPosition(startPos.x, startPos.y);
                 player.SnapToChunkStartTile();
             }
-            // =========================================================================
 
             SpawnNextRecallModeTarget();
 
@@ -557,7 +552,6 @@ public class GridManager : MonoBehaviour
     {
         if (recallManager != null)
         {
-            // Reset current sequence step counter whenever a new chunk starts
             currentSequenceStep = 0;
 
             StartCoroutine(recallManager.StartRecallRoutine(
@@ -604,7 +598,7 @@ public class GridManager : MonoBehaviour
         // 2. Set the current target step to Safe
         grid[targetPos.x, targetPos.y].SetState(TileState.Safe, noteToPlay);
 
-        // 3. Hide all tile visuals so Recall Mode remains a blind memory test!
+        // 3. Hide all tile visuals
         for (int x = 0; x < cols; x++)
         {
             for (int y = 0; y < rows; y++)
@@ -629,7 +623,6 @@ public class GridManager : MonoBehaviour
 
     public bool IsRecallSequenceComplete()
     {
-        // Only check sequence completion bounds if Recall Mode is active!
         if (GameManager.SelectedMode == GameMode.RecallMode && recallManager != null)
         {
             int activeChunkLength = (recallManager.currentChunkNotes != null)
@@ -693,7 +686,6 @@ public class GridManager : MonoBehaviour
 
     void HandleGhostCollision()
     {
-        // Prevent ghost collision from deducting lives twice in one step
         if (Time.time - lastGhostHitTime < 0.3f) return;
         lastGhostHitTime = Time.time;
 

@@ -2,7 +2,7 @@
 
 **50.033 Midterm Game Jam: The Remix**
 
-- **Team Members:** Foong Jingxuan Janelle
+- **Team Member:** Foong Jingxuan Janelle
 - **Game Title:** Floor is Key
 - **Primary Song / Artist:** U Can't Touch This / MC Hammer
 - **Remix Track / Artist:** Toxic / Britney Spears
@@ -13,7 +13,7 @@
   I interpreted MC Hammer's "U Can't Touch This" through a literal, spatial game lens: the physical floor space is a dangerous arena where touching forbidden areas or colliding with obstacles yields immediate penalties. The core fantasy revolves around precision avoidance and spatial navigation—making the player feel the high-stakes tension of navigating a field where one wrong step ruins the performance.
   
 - **Implementation:** Which specific gameplay mechanics reflect this interpretation?  
-  Borrowing mechanics from "The Floor is Lava" combined with interactive musical pitch progression, players control Pac-Man on a 5x5 tile grid. Movement is strictly discrete and grid-aligned. Danger tiles ("Lava") spawn dynamically to block direct traversal paths, while a patrolling "Ghost" enemy actively searches the grid. Stepping on a lava tile or colliding with the ghost immediately subtracts a life, interrupts the combo counter, and plays a disharmonious error sound, reinforcing the core rule that hazard tiles simply cannot be touched.
+  Borrowing mechanics from "The Floor is Lava" combined with interactive musical pitch progression, players control Pac-Man on a 5x5 tile grid. Movement is strictly discrete and grid-aligned. Danger tiles ("Lava") spawn dynamically to block direct traversal paths, while a patrolling "Ghost" enemy actively searches the grid. Stepping on a lava tile or colliding with the ghost immediately subtracts a life, interrupts the combo counter, and plays an error sound, reinforcing the core rule that hazard tiles simply cannot be touched.
 
 ## 2. Gameplay & Player Experience (30%)
 
@@ -24,9 +24,9 @@
 
   - Lose Condition: Lose all 3 lives due to step errors (stepping on Lava tiles or getting caught by the Ghost enemy) OR allow the 60-second timer to reach zero.
 
-- **Core Mechanics:** What are the main gameplay mechanics?
-
-  1. Discrete Grid Movement & Timing Cooldown: Movement is mapped strictly to WASD. Stepping onto tiles triggers a move timer cooldown to prevent chaotic spamming, forcing intentional movement.
+- **Core Mechanics:** What are the main gameplay mechanics?  
+  The core mechanics present in the game are Reflex, Tactical Choice, and Accuracy. 
+  1. Discrete Grid Movement & Timing Cooldown: Movement is mapped strictly to WASD / Arrow Keys. Every move requires players to weigh short-term pathing decisions around lava hazards. Stepping onto tiles triggers a move timer cooldown to prevent chaotic spamming, forcing intentional movement.
 
   2. Dynamic Breadth-First Search (BFS) Path Generation: Every target note spawn generates a fresh layout of neutral tiles and lava hazards. A background BFS algorithm (GridPathfinder.cs) runs continuously to guarantee that a valid, unblocked path always exists between Pac-Man and the target tile.
 
@@ -43,43 +43,43 @@
 
   - Do I take the fastest direct path toward a target note to extend my combo multiplier before time runs out, or take a wider, safer route around lava tiles and the roaming ghost?
 
-  - Do I risk stepping onto a Toxic Melon to trigger an instant 2-tile forward leap and score boost, even though launching forward into unknown tiles increases the chance of accidentally landing on a lava hazard or directly into the ghost?
+  - Do I risk stepping onto a Toxic Melon to activate a 4-second 2-tile movement boost and score bonus, even though double-tile steps increase the chance of accidentally overshooting safe paths straight into lava hazards or the ghost?
 
 ## 3. Remix Integration (20%)
 
 - **Interpretation:** How did you interpret the remix track?  
-I interpreted Britney Spears' "Toxic" by embodying its thematic essence: an irresistible, seductive temptation that comes with a sudden, unpredictable drawback. Mechanically, this translates into a high-risk / high-reward power-up where grabbing an instant benefit forces a sudden physical leap across the grid.
+I interpreted Britney Spears' "Toxic" by embodying its thematic essence: an irresistible, seductive temptation that comes with a sudden, unpredictable drawback. Mechanically, this translates into a high-risk / high-reward power-up where grabbing an instant benefit forces a temporary, high-speed movement state across the grid.
 - **Implementation:** What mechanics were added or modified?  
-A special Toxic Melon collectible randomly spawns on available neutral grid tiles during gameplay.
+A special Toxic Melon collectible randomly spawns on available neutral grid tiles when new target notes generate.
 
-  - The Benefit: Stepping on a Toxic Melon awards an instant +300 score bonus, adds +2 to the active combo multiplier, and triggers a temporary movement speed boost (halving move cooldown).
+  - The Benefit: Stepping on a Toxic Melon awards an instant +300 score bonus, adds +2 to the active combo multiplier, and triggers a 4-second **Toxic Overdrive** state (ToxicItemManager.cs).
 
-  - The Toxic Consequence / Leap: It immediately triggers a Toxic Leap (PerformToxicLeap), forcibly propelling Pac-Man an extra step forward in his active movement direction. Furthermore, during the 4-second Toxic Overdrive period, the ghost's movement interval is halved, causing it to patrol the grid at 2x speed.
+  - The Toxic Overdrive Mechanics: During Overdrive, every WASD / Arrow key press propels Pac-Man 2 tiles forward across the grid with a halved movement cooldown. However, the ghost's movement interval is also halved, causing it to patrol the grid at 2x speed.
 - **Interaction:** How does the remix change or interact with the original gameplay?  
-The Toxic remix disrupts careful, step-by-step path planning. While the double-tile leap and speed boost allow Pac-Man to cover ground faster, the forced extra tile movement can accidentally overshoot safe paths into lava tiles or straight into the ghost if the player does not calculate their leap trajectory accurately.
+The Toxic remix disrupts careful, step-by-step path planning. While the 2-tile movement boost and speed increase allow Pac-Man to cover ground quickly, forced 2-tile strides make precise navigation tricky, increasing the risk of overshooting safe tiles into lava or directly into the accelerated ghost.
 - **Demonstration:** How can the grader observe the remix mechanic?  
   1. Start a game in Standard Mode.
 
-  2. Traversal on grid tiles has a 30% chance to spawn a Toxic Melon item.
+  2. Target note spawns have a chance to generate a Toxic Melon item on a neutral tile.
 
   3. Step onto the Toxic Melon tile.
 
-  4. Notice the instant visual feedback: floating text "+300 COMBO +2!", the onscreen banner "TOXIC OVERDRIVE!", Pac-Man's instant bonus step forward (leap), and the ghost's doubled step frequency.
+  4. Notice the instant visual feedback: floating text "+300 COMBO +2!", the onscreen banner "TOXIC OVERDRIVE!", Pac-Man moving 2 tiles per input step, and the ghost's doubled step frequency for 4 seconds.
 
 ## 4. Technical Execution (15%)
 
 - **How to Run:**  
-  Run the executable file directly.
+  Run the executable file directly or play within the Unity Editor (`MainMenu` scene).
 
-- **Controls:** List all player controls.  
-  Standard W, A, S, D keys and Arrow keys.  
-  W / Up Arrow: Move Up  
-  A / Left Arrow: Move Left  
-  S / Down Arrow: Move Down  
-  D / Right Arrow: Move Right
+- **Controls:**   
+  Standard W, A, S, D keys or Arrow keys.  
+  - W / Up Arrow: Move Up  
+  - A / Left Arrow: Move Left  
+  - S / Down Arrow: Move Down  
+  - D / Right Arrow: Move Right
 
 - **Known Bugs / Limitations:**  
-None. All pathing, sequence memory clamping, mode transitions, and replay recording routines run smoothly without unhandled exceptions.
+None.
 
 ## 5. Game Design & Balance (10%)
 
@@ -96,32 +96,32 @@ None. All pathing, sequence memory clamping, mode transitions, and replay record
 
   - Enemy AI Avoidance: The ghost algorithm (GridGhost.cs) evaluates surrounding open tiles dynamically while avoiding safe cyan target notes, preventing the ghost from camping on top of the player's objective.
 - **Demonstration:** What specific gameplay situation should the grader try to evaluate the challenge and balance?  
-  - Test Standard Mode Risk/Reward: Collect a Toxic Melon while positioned close to a row of lava tiles or the ghost. Observe how the instant 2-tile leap and accelerated ghost movement demand instant trajectory planning to avoid landing on a hazard.
+  - Test Standard Mode Risk/Reward: Collect a Toxic Melon while positioned close to a row of lava tiles or the ghost. Observe how 2-tile movement strides and accelerated ghost movement demand instant trajectory planning to avoid landing on a hazard.
 
   - Test Recall Mode Progression: Select Recall Mode from the Main Menu, choose a preview speed (Slow/Medium/Fast), and play through Chunks 1 and 2. Notice how tile locations hide after the preview phase, requiring memorization of tile coordinates, and verify that Pac-Man safely teleports back to tile 0 of the active chunk upon making an error.
 
 ## 6. Credits (Mandatory)
 
-List all external assets, code, tutorials, and AI tools used, with sources. State "None" if not applicable.
-
 - Piano Note Audio Assets:  
 
-  Paris Java Piano WAV Library — https://github.com/parisjava/wav-piano-sound
+  - Individual Piano Notes Sound: https://github.com/parisjava/wav-piano-sound
 
 - Sound Effects:
 
-  - Wrong Step / Error Sound: Pixabay Special Effects — https://pixabay.com/sound-effects/film-special-effects-wronganswer-37702/
+  - Wrong Step / Error Sound: https://pixabay.com/sound-effects/film-special-effects-wronganswer-37702/
 
-  - Level Complete Stinger: QuickSounds Brawl Stars Win FX — https://quicksounds.com/sound/29774/brawl-stars-win-winning-sounds
+  - Game Over Audio: https://soundinstants.com/sound/lost-sounds-sound-effect-brawl-stars
+
+  - Level Complete Audio: https://quicksounds.com/sound/29774/brawl-stars-win-winning-sounds
 
 - UI & Graphics:
 
-  - Neon UI Kit Sampler: RJC Dude on Itch.io — https://rjc-dude.itch.io/neon-ui-kit-sampler
+  - Neon UI Kit Sampler: https://rjc-dude.itch.io/neon-ui-kit-sampler
 
-  - Pac-Man Sprite Sheet: The Spriters Resource — https://www.spriters-resource.com/arcade/pacman/asset/52631/
+  - Pac-Man Sprite Sheet: https://www.spriters-resource.com/arcade/pacman/asset/52631/
 
 - AI Tools:
 
-  - Gemini
+  - Gemini: Algorithmic Pathfinding (BFS path validation), Recall Mode logic (Multi-chunk sequence playback, memory path generation), Rounded Box UI, Camera Shake, Bug Fixes
 
 ---

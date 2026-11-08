@@ -22,7 +22,7 @@ public class GridGhost : MonoBehaviour
             // Dynamically get move speed from GridManager
             float baseInterval = (GridManager.Instance != null) ? GridManager.Instance.ghostMoveInterval : moveInterval;
 
-            // CONSEQUENCE: Ghost moves 2x faster (half interval duration) during Toxic Overdrive!
+            // CONSEQUENCE: Ghost moves 2x faster during Toxic Overdrive
             if (GridManager.Instance != null && GridManager.Instance.isToxicActive)
             {
                 baseInterval *= 0.5f;
@@ -69,10 +69,9 @@ public class GridGhost : MonoBehaviour
             // Check grid boundaries
             if (candidatePos.x >= 0 && candidatePos.x < gridWidth && candidatePos.y >= 0 && candidatePos.y < gridHeight)
             {
-                // Must be a DIFFERENT tile from current position
+                // Must be a different tile from current position
                 if (candidatePos == gridPosition) continue;
 
-                // Check custom obstacles list if provided
                 if (obstacles != null && obstacles.Contains(candidatePos)) continue;
 
                 // Prevent ghost from stepping onto safe (cyan) target tiles

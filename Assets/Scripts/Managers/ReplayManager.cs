@@ -8,7 +8,6 @@ public class ReplayManager : MonoBehaviour
 {
     public static ReplayManager Instance;
 
-    // Static list preserves the recorded notes across DontDestroyOnLoad scene transitions
     private static List<int> recordedNotes = new List<int>();
 
     void Awake()
@@ -39,7 +38,7 @@ public class ReplayManager : MonoBehaviour
 
     public void StartReplay()
     {
-        StopAllCoroutines(); // Stop any overlapping replay routines
+        StopAllCoroutines();
         StartCoroutine(ReplaySequenceRoutine());
     }
 
